@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Les Amis de Montety - Association de loi 1901 à Toulon. Créer une dynamique intergénérationnelle et aider les plus fragiles.">
+    <title>Les Amis de Montety - Association Toulon</title>
+    <!-- FullCalendar CSS & JS -->
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css' rel='stylesheet' />
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/locales/fr.global.min.js'></script>
+    <link rel="stylesheet" href="css/style.css">
+
+    <style>
+    /* ── POPUP ÉVÉNEMENT ── */
+    #eventPopup {
+        display: none; position: fixed; inset: 0;
+        background: rgba(36,67,93,0.55); z-index: 5000;
+        align-items: center; justify-content: center;
+        padding: 1rem;
+    }
+    #eventPopup.active { display: flex; }
+    .ep-box {
+        background: #fff; border-radius: 18px;
+        width: 100%; max-width: 560px;
+        max-height: 88vh; overflow-y: auto;
+        box-shadow: 0 12px 48px rgba(36,67,93,0.22);
+        animation: epIn .25s ease;
+    }
+    @keyframes epIn { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:none; } }
+    .ep-header {
+        background: linear-gradient(135deg,#24435d,#0f3a54);
+        color: white; padding: 1.25rem 1.5rem;
+        border-radius: 18px 18px 0 0;
+        display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;
+    }
+    .ep-header h2 { font-size: 1.15rem; font-weight: 700; line-height: 1.3; }
+    .ep-close {
+        background: rgba(255,255,255,0.18); border: none; color: white;
+        width: 32px; height: 32px; border-radius: 50%; font-size: 1.2rem;
+        cursor: pointer; flex-shrink: 0; line-height: 1;
+        transition: background .2s;
+    }
+    .ep-close:hover { background: rgba(255,255,255,0.35); }
+    .ep-body { padding: 1.5rem; }
+    .ep-meta { display: flex; flex-direction: column; gap: .55rem; margin-bottom: 1.25rem; }
+    .ep-meta-line { display: flex; gap: .6rem; align-items: flex-start; font-size: .92rem; color: #5a6e7a; }
+    .ep-meta-line strong { color: #24435d; white-space: nowrap; }
+    .ep-desc { background: #f4f7fa; border-radius: 10px; padding: .9rem 1.1rem; font-size: .9rem; color: #1e3a4a; line-height: 1.6; margin-bottom: 1.25rem; }
+    .ep-divider { border: none; border-top: 2px solid #f4b942; margin: 1.25rem 0; opacity:.4; }
+    .ep-qa-title { font-size: .95rem; font-weight: 700; color: #24435d; margin-bottom: .85rem; }
+    .ep-qa-list { display: flex; flex-direction: column; gap: .85rem; margin-bottom: 1.25rem; }
+    .ep-qa-item { background: #eef4fa; border-radius: 10px; padding: .85rem 1rem; }
+    .ep-qa-q { font-size: .85rem; font-weight: 600; color: #24435d; margin-bottom: .4rem; }
+    .ep-qa-a { font-size: .85rem; color: #28a745; border-left: 3px solid #28a745; padding-left: .65rem; }
+    .ep-form label { display: block; font-size: .78rem; font-weight: 700; color: #5a6e7a; text-transform: uppercase; letter-spacing: .04em; margin-bottom: .3rem; }
+    .ep-form input, .ep-form textarea {
+        width: 100%; padding: .6rem .85rem; border: 2px solid #dce5ec;
+        border-radius: 9px; font-size: .9rem; outline: none;
+        transition: border-color .2s; margin-bottom: .85rem;
+        font-family: inherit;
+    }
+    .ep-form input:focus, .ep-form textarea:focus { border-color: #f4b942; box-shadow: 0 0 0 3px rgba(244,185,66,.18); }
+    .ep-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .ep-btn {
+        width: 100%; padding: .75rem; background: linear-gradient(135deg,#f4b942,#e0a52e);
+        color: #24435d; font-weight: 800; font-size: .95rem; border: none;
+        border-radius: 10px; cursor: pointer; transition: all .2s;
+        box-shadow: 0 3px 12px rgba(244,185,66,.3);
+    }
+    .ep-btn:hover { transform: translateY(-1px); box-shadow: 0 5px 18px rgba(244,185,66,.4); }
+    .ep-success { display:none; text-align:center; padding: 1rem; color: #28a745; font-weight:700; font-size:.95rem; }
+    .ep-maps-btn {
+        display: inline-block; margin-left: .4rem;
+        background: #e8f5e9; color: #2e7d32;
+        border: 1px solid #a5d6a7; border-radius: 12px;
+        padding: .15rem .55rem; font-size: .78rem; font-weight: 600;
+        text-decoration: none; transition: background .2s;
+        white-space: nowrap;
+    }
+    .ep-maps-btn:hover { background: #c8e6c9; }
+    .ep-visio-btn {
+        display: inline-block;
+        background: linear-gradient(135deg, #1a73e8, #0d47a1);
+        color: white; border-radius: 12px;
+        padding: .2rem .7rem; font-size: .82rem; font-weight: 600;
+        text-decoration: none; transition: opacity .2s;
+    }
+    .ep-visio-btn:hover { opacity: .85; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <div class="logo-section" onclick="location.href='index.html'">
+                <div class="logo"></div>
+            </div>
+            <nav class="nav-links">
+                <a href="#about">À Propos</a>
+                <a href="#events">Événements</a>
+                <a href="#partners">Partenaires</a>
+                <a href="#contact">Contact</a>
+                <a href="coupdepouce.html" style="background:linear-gradient(135deg,#f4b942,#e8a820);color:#24435d;padding:0.35rem 1rem;border-radius:20px;font-weight:700;">Coup de pouce</a>
+                <button class="cta-button" onclick="location.href='pages/adhesion.html'">Adhérer</button>
+                <button class="cta-button btn-donate" onclick="location.href='pages/don.html'">Faire un don</button>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <h1>Créer une dynamique de quartier intergénérationnelle</h1>
+            <p>Une association dédiée à l'aide des plus fragiles, l'accueil intergénérationnel et la cohabitation solidaire afin de perpétuer l'héritage de Paulin de Montety à Toulon.</p>
+            <div class="hero-buttons">
+                <button class="cta-button" onclick="location.href='pages/adhesion.html'">Devenir Adhérent</button>
+                <button class="cta-button btn-donate" onclick="location.href='pages/don.html'">Faire un don</button>
+                <button class="btn-secondary" onclick="document.getElementById('events').scrollIntoView({behavior: 'smooth'})">Découvrir nos Événements</button>
+            </div>
+        </div>
+    </section>
+
+    <section id="about" class="about">
+        <div class="container">
+            <h2 class="section-title">Qui sommes-nous ?</h2>
+            <div class="about-text">
+                <h3>Notre Mission</h3>
+                <p>L'association "Les Amis de Montety" est une association de loi 1901, basée à Toulon. Notre mission est de <strong>perpétuer l'héritage de Monsieur Paulin de Montety</strong>, sa vision précurseur d'un <strong>quartier solidaire</strong> des plus fragiles.</p>
+                <p>Initialment dévolu aux ouvriers, ce quartier a subi plusieurs transformations notamment avec le projet du quartier de la Connaissance et de la Créativité de 2019. Aujourd'hui, deux populations précaires se côtoient autour de ce quartier emblématique de Toulon: <strong>les étudiants et les personnes agées.</strong></p>
+                <p>Nous créons un pôle de vie fraternelle à Montety pour <strong>aider les personnes en difficulté, favoriser la cohabitation intergénérationnelle et combattre l'isolement des personnes âgées.</strong></p>
+                <h3>Nos Objectifs</h3>
+                <p style= "text-indent: 0em">
+                    <strong>• Gestion d'un lieu de vie :</strong> Création d'un lieu de vie intergénérationnel au coeur du quartier de Montety <br>
+                    <strong>• Lutte contre l'isolement :</strong> Accueil des personnes âgées et étudiants<br>
+                    <strong>• Créer un lien autour de la transmission :</strong> Organisation d'évènement sur des thématiques de transmissions<br>
+                    <strong>• Buvette associative :</strong> Créer puis entretenir une buvette associative
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section id="events" class="events">
+        <div class="container">
+            <h2 class="section-title">Nos Événements</h2>
+            <div class="events-header">
+                <div class="event-type-card"><span>📅</span><h3>Événements Hebdomadaires</h3><p>Apéritifs intergénérationnels<br>chaque dimanche soir</p></div>
+                <div class="event-type-card"><span>🗓️</span><h3>Événements Trimestriels</h3><p>Conférences et débats sur la transmission</p></div>
+                <div class="event-type-card"><span>🍷</span><h3>Buvette Associative</h3><p>Lieu de rencontre et convivialité<br>toute l'année</p></div>
+            </div>
+            <div class="calendar-container"><div id="calendar"></div></div>
+        </div>
+    </section>
+
+    <section id="partners" class="partners">
+        <div class="container">
+            <h2 class="section-title">Nos Partenaires</h2>
+            <div class="partners-grid">
+                <a href="https://toulon.fr/" target="_blank" rel="noopener noreferrer" class="partner-link">
+                    <div class="partner-item">
+                        <div class="partner-logo"><img src="toulon-logo-cartouche.jpg" alt="Mairie de Toulon"></div>
+                        <h3>Mairie de Toulon</h3>
+                        <p>Avec le soutien de la commune de Toulon</p>
+                    </div>
+                </a>
+                <a href="https://frejustoulon.fr/" target="_blank" rel="noopener noreferrer" class="partner-link">
+                    <div class="partner-item">
+                        <div class="partner-logo"><img src="logo-diocese.png" alt="Diocèse de Fréjus-Toulon"></div>
+                        <h3>Diocèse de Fréjus-Toulon</h3>
+                        <p>Partenariat pour le prêt de locaux</p>
+                    </div>
+                </a>
+                <a href="https://www.colombage-cohabitation.fr/" target="_blank" rel="noopener noreferrer" class="partner-link">
+                    <div class="partner-item">
+                        <div class="partner-logo"><img src="logo_colombage.png" alt="Colombage"></div>
+                        <h3>Colombage</h3>
+                        <p>Gestion de colocations intergénérationnelles</p>
+                    </div>
+                </a>
+                <div class="partner-item">
+                    <div class="partner-logo"><img src="logo_pizza.jpg" alt="Pizzeria"></div>
+                    <h3>Pizzeria</h3>
+                    <p>Contribution aux apéritifs dinatoires</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION PRODUCTEURS LOCAUX -->
+    <section id="producers" class="producers">
+        <div class="container">
+            <h2 class="section-title">Nos producteurs du quartier</h2>
+            <div class="partners-grid">
+                <a href="produits/miel.html" class="partner-link">
+                    <div class="partner-item">
+                        <div class="partner-logo producer-icon">🍯</div>
+                        <h3>Vente de Miel</h3>
+                        <p>Miels naturels et produits dérivés de qualité</p>
+                        <button class="btn-primary" style="margin-top: 1rem;">Voir les produits →</button>
+                    </div>
+                </a>
+                <a href="produits/maraicher.html" class="partner-link">
+                    <div class="partner-item">
+                        <div class="partner-logo producer-icon">🥬</div>
+                        <h3>Produits du Maraîcher</h3>
+                        <p>Fruits et légumes frais de saison</p>
+                        <button class="btn-primary" style="margin-top: 1rem;">Voir les produits →</button>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <section id="contact" class="contact">
+        <div class="container">
+            <h2 class="section-title">Nous Contacter</h2>
+            <div class="contact-content">
+
+                <!-- COLONNE GAUCHE : coordonnées + carte -->
+                <div class="contact-left">
+                    <div class="about-highlight">
+                        <h3>📍 Coordonnées & Accès</h3>
+                        <p><strong>Adresse :</strong><br>13 boulevard Commandant Nicolas<br>83100 Toulon<br>France</p>
+                        <p><strong>📧 Email :</strong> <a href="mailto:contact@amismontety.fr">contact@amismontety.fr</a><br>
+                        <strong>📱 Téléphone :</strong> 04 94 00 00 00</p>
+                    </div>
+                    <div class="map-container">
+                        <iframe
+                            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2896.123456789012!2d5.932345678901234!3d43.123456789012345!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x12c9a5c8f2e8d4f7%3A0x1a2b3c4d5e6f7a8b!2s13%20Boulevard%20Commandant%20Nicolas%2C%2083100%20Toulon%2C%20France!5e0!3m2!1sfr!2sfr!4v1698765432100!5m2!1sfr!2sfr"
+                            allowfullscreen=""
+                            loading="lazy"
+                            referrerpolicy="no-referrer-when-downgrade"
+                            title="Localisation des Amis de Montety — 13 bd Commandant Nicolas, Toulon">
+                        </iframe>
+                    </div>
+                </div>
+
+                <!-- COLONNE DROITE : formulaire -->
+                <form onsubmit="submitContactMessage(event)">
+                    <div class="form-group"><label>Nom complet *</label><input type="text" id="contactName" required></div>
+                    <div class="form-group"><label>Email *</label><input type="email" id="contactEmail" required></div>
+                    <div class="form-group"><label>Sujet *</label><input type="text" id="contactSubject" required></div>
+                    <div class="form-group"><label>Message *</label><textarea id="contactMessage" rows="6" required></textarea></div>
+                    <button type="submit" class="btn-primary">Envoyer le message</button>
+                </form>
+
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h3>L'Association</h3>
+                <ul>
+                    <li><a href="#about">Qui sommes-nous</a></li>
+                    <li><a href="#about">Le bureau</a></li>
+                    <li><a href="#partners">Nos partenaires</a></li>
+                    <li><a href="#contact">Nous contacter</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h3>Nos activités</h3>
+                <ul>
+                    <li><a href="#events">Événements</a></li>
+                    <li><a href="#producers">Producteurs locaux</a></li>
+                    <li><a href="coupdepouce.html">🤝 Coup de pouce</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h3>Adhérer &amp; Soutenir</h3>
+                <ul>
+                    <li><a href="pages/adhesion.html">Devenir adhérent</a></li>
+                    <li><a href="pages/don.html">Faire un don</a></li>
+                    <li><a href="paiement.html">Paiement en ligne</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h3>Informations légales</h3>
+                <ul>
+                    <li><a href="cgu.html">Mentions légales</a></li>
+                    <li><a href="cgu.html#cgu">Conditions d'utilisation</a></li>
+                    <li><a href="cgu.html#confidentialite">Données personnelles</a></li>
+                    <li><a href="admin.html">Espace administration</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>
+                &copy; <span id="footerYear"></span> Les Amis de Montety — Association loi 1901 —
+                <a href="cgu.html" style="color:rgba(255,255,255,0.6);text-decoration:none;">Mentions légales</a>
+            </p>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+    <script>
+        // Charger les événements validés uniquement
+        document.addEventListener('DOMContentLoaded', function() {
+            const events = JSON.parse(localStorage.getItem('montety_events')) || [];
+            // Uniquement les événements validés ET publics
+            const validatedEvents = events.filter(e => e.status === 'validated' && (e.type || 'public') === 'public');
+
+            const calendarEl = document.getElementById('calendar');
+            if (calendarEl) {
+                const calendar = new FullCalendar.Calendar(calendarEl, {
+                    locale: 'fr',
+                    initialView: 'listWeek',
+                    headerToolbar: {
+                        left: 'prev,next today',
+                        center: 'title',
+                        right: 'dayGridMonth,timeGridWeek,listWeek'
+                    },
+                    events: validatedEvents.map(e => ({
+                        id: e.id,
+                        title: e.title,
+                        start: e.start,
+                        end: e.end,
+                        color: e.color || '#f4b942',
+                        extendedProps: {
+                            location:    e.location    || '',
+                            description: e.description || '',
+                            visioLink:   e.visioLink   || '',
+                            visioCode:   e.visioCode   || ''
+                        }
+                    })),
+                    eventClick: function(info) {
+                        openEventPopup(info.event);
+                    },
+                    eventDidMount: function(info) {
+                        info.el.style.cursor = 'pointer';
+                        info.el.title = 'Cliquer pour voir les détails et poser une question';
+                    },
+                    height: 'auto',
+                    noEventsText: 'Aucun événement à venir',
+                    buttonText: {
+                        today:  'Aujourd\'hui',
+                        month:  'Mois',
+                        week:   'Semaine',
+                        day:    'Jour',
+                        list:   'Liste'
+                    },
+                    allDayText:   'Toute la journée',
+                    moreLinkText: (n) => `+ ${n} autres`,
+                    weekText:     'Sem.'
+                });
+                calendar.render();
+            }
+        });
+        
+
+        // ── POPUP ÉVÉNEMENT ──
+        let _currentPopupEventId = null;
+
+        function openEventPopup(fcEvent) {
+            _currentPopupEventId = fcEvent.id;
+            document.getElementById('ep-title').textContent = fcEvent.title;
+
+            // Méta-données
+            const start     = fcEvent.start  ? new Date(fcEvent.start).toLocaleDateString('fr-FR', {weekday:'long',day:'numeric',month:'long',year:'numeric'}) : '';
+            const startTime = fcEvent.start  ? new Date(fcEvent.start).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}) : '';
+            const end       = fcEvent.end    ? new Date(fcEvent.end).toLocaleDateString('fr-FR', {weekday:'long',day:'numeric',month:'long',year:'numeric'}) : '';
+            const endTime   = fcEvent.end    ? new Date(fcEvent.end).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'}) : '';
+            const loc       = fcEvent.extendedProps.location  || '';
+            const desc      = fcEvent.extendedProps.description || '';
+            const visioLink = fcEvent.extendedProps.visioLink  || '';
+            const visioCode = fcEvent.extendedProps.visioCode  || '';
+
+            const meta = document.getElementById('ep-meta');
+            meta.innerHTML = '';
+            if (start) {
+                const dateStr = startTime && startTime !== '00:00' ? `${start} à ${startTime}` : start;
+                meta.innerHTML += `<div class="ep-meta-line"><strong>📅 Début :</strong><span>${dateStr}</span></div>`;
+            }
+            if (end && end !== start) {
+                const dateStr = endTime && endTime !== '00:00' ? `${end} à ${endTime}` : end;
+                meta.innerHTML += `<div class="ep-meta-line"><strong>🏁 Fin :</strong><span>${dateStr}</span></div>`;
+            }
+            if (loc) {
+                const mapsUrl = 'https://maps.google.com/?q=' + encodeURIComponent(loc);
+                meta.innerHTML += `<div class="ep-meta-line"><strong>📍 Lieu :</strong><span>${loc} <a href="${mapsUrl}" target="_blank" rel="noopener" class="ep-maps-btn">🗺️ Voir sur Maps</a></span></div>`;
+            }
+            if (visioLink) {
+                const codeStr = visioCode ? ` — Code : <strong>${visioCode}</strong>` : '';
+                meta.innerHTML += `<div class="ep-meta-line"><strong>🎥 Visio :</strong><span><a href="${visioLink}" target="_blank" rel="noopener" class="ep-visio-btn">Rejoindre la visio →</a>${codeStr}</span></div>`;
+            }
+
+            const descEl = document.getElementById('ep-desc');
+            if (desc) { descEl.textContent = desc; descEl.style.display = ''; }
+            else { descEl.style.display = 'none'; }
+
+            // Q&A répondues
+            refreshPopupQA(fcEvent.id);
+
+            // Reset formulaire
+            document.getElementById('ep-name').value     = '';
+            document.getElementById('ep-email').value    = '';
+            document.getElementById('ep-question').value = '';
+            document.getElementById('ep-success').style.display = 'none';
+
+            document.getElementById('eventPopup').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function refreshPopupQA(eventId) {
+            const questions = JSON.parse(localStorage.getItem('montety_event_questions') || '[]');
+            const answered  = questions.filter(q => q.eventId === eventId && q.answered && q.answer);
+            const section   = document.getElementById('ep-qa-section');
+            const list      = document.getElementById('ep-qa-list');
+            if (answered.length === 0) { section.style.display = 'none'; return; }
+            section.style.display = '';
+            list.innerHTML = answered.map(q => `
+                <div class="ep-qa-item">
+                    <div class="ep-qa-q">❓ ${q.question}</div>
+                    <div class="ep-qa-a">✅ ${q.answer}</div>
+                </div>`).join('');
+        }
+
+        function closeEventPopup() {
+            document.getElementById('eventPopup').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function submitEventQuestion() {
+            const question = document.getElementById('ep-question').value.trim();
+            if (!question) { alert('Veuillez écrire votre question.'); return; }
+            const name  = document.getElementById('ep-name').value.trim();
+            const email = document.getElementById('ep-email').value.trim();
+
+            const events = JSON.parse(localStorage.getItem('montety_events') || '[]');
+            const ev     = events.find(e => String(e.id) === String(_currentPopupEventId));
+
+            const questions = JSON.parse(localStorage.getItem('montety_event_questions') || '[]');
+            questions.push({
+                id:           Date.now(),
+                eventId:      String(_currentPopupEventId),
+                eventTitle:   ev ? ev.title : document.getElementById('ep-title').textContent,
+                question:     question,
+                authorName:   name  || 'Anonyme',
+                authorEmail:  email || '',
+                date:         new Date().toISOString(),
+                read:         false,
+                answered:     false,
+                answer:       '',
+                answeredAt:   null
+            });
+            localStorage.setItem('montety_event_questions', JSON.stringify(questions));
+
+            document.getElementById('ep-question').value = '';
+            document.getElementById('ep-success').style.display = 'block';
+            setTimeout(() => { document.getElementById('ep-success').style.display = 'none'; }, 4000);
+        }
+
+        // Fermer la popup si clic sur le fond
+        document.getElementById('eventPopup').addEventListener('click', function(e) {
+            if (e.target === this) closeEventPopup();
+        });
+        // Fonction pour le formulaire de contact
+        function submitContactMessage(event) {
+            event.preventDefault();
+            alert('Merci pour votre message ! Nous vous répondrons dans les plus brefs délais.');
+            event.target.reset();
+        }
+    </script>
+
+    <!-- ══ POPUP DÉTAIL ÉVÉNEMENT ══ -->
+    <div id="eventPopup">
+        <div class="ep-box">
+            <div class="ep-header">
+                <h2 id="ep-title">Titre</h2>
+                <button class="ep-close" onclick="closeEventPopup()">×</button>
+            </div>
+            <div class="ep-body">
+                <div class="ep-meta" id="ep-meta"></div>
+                <div class="ep-desc" id="ep-desc" style="display:none;"></div>
+
+                <div id="ep-qa-section" style="display:none;">
+                    <hr class="ep-divider">
+                    <p class="ep-qa-title">💬 Questions &amp; Réponses</p>
+                    <div class="ep-qa-list" id="ep-qa-list"></div>
+                </div>
+
+                <hr class="ep-divider">
+                <p class="ep-qa-title">❓ Poser une question sur cet événement</p>
+                <div class="ep-form">
+                    <div class="ep-form-row">
+                        <div>
+                            <label>Votre nom</label>
+                            <input type="text" id="ep-name" placeholder="Prénom Nom">
+                        </div>
+                        <div>
+                            <label>Email (pour recevoir la réponse)</label>
+                            <input type="email" id="ep-email" placeholder="votre@email.fr">
+                        </div>
+                    </div>
+                    <label>Votre question *</label>
+                    <textarea id="ep-question" rows="3" placeholder="Posez votre question ici…"></textarea>
+                    <button class="ep-btn" onclick="submitEventQuestion()">Envoyer ma question →</button>
+                    <p class="ep-success" id="ep-success">✅ Question envoyée ! Nous vous répondrons bientôt.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paiement sécurisé — Les Amis de Montety</title>
+    <style>
+        :root {
+            --primary: #24435d;
+            --primary-dark: #0f3a54;
+            --accent: #f4b942;
+            --accent-hover: #e0a52e;
+            --success: #28a745;
+            --danger: #dc3545;
+            --border: #dce5ec;
+            --muted: #5a6e7a;
+            --bg: #f4f7fa;
+            --white: #ffffff;
+            --radius: 14px;
+            --shadow: 0 4px 24px rgba(36,67,93,0.10);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg);
+            color: var(--primary);
+            min-height: 100vh;
+        }
+
+        /* ── HEADER ── */
+        .page-header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 1.2rem 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1.2rem;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+        }
+        .page-header img { height: 48px; }
+        .page-header-title h1 { font-size: 1.3rem; font-weight: 700; }
+        .page-header-title p { font-size: 0.82rem; opacity: 0.75; margin-top: 2px; }
+        .back-link {
+            margin-left: auto;
+            color: rgba(255,255,255,0.75);
+            text-decoration: none;
+            font-size: 0.88rem;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 0.4rem 0.9rem;
+            border-radius: 20px;
+            transition: all 0.2s;
+        }
+        .back-link:hover { background: rgba(255,255,255,0.15); color: white; }
+
+        /* ── HEADER UNIFIÉ (classes style.css importées inline) ── */
+        header {
+            background: linear-gradient(135deg, #24435d 0%, #0f3a54 100%);
+            color: white;
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .logo-section { display: flex; align-items: center; cursor: pointer; }
+        .logo {
+            width: 280px;
+            height: 60px;
+            background-image: url('logo_montety_bleu.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center left;
+        }
+        .header-back-link {
+            color: rgba(255,255,255,0.85);
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 600;
+            border: 1.5px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
+            padding: 0.35rem 0.9rem;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        .header-back-link:hover { background: rgba(255,255,255,0.12); color: white; }
+
+        /* ── LAYOUT ── */
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 2.5rem 1.5rem 4rem;
+        }
+
+        /* ── TABS ── */
+        .tab-switcher {
+            display: flex;
+            gap: 0;
+            border-radius: var(--radius);
+            overflow: hidden;
+            border: 2px solid var(--primary);
+            width: fit-content;
+            margin: 0 auto 2.5rem;
+        }
+        .tab-btn {
+            padding: 0.75rem 2.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            background: var(--white);
+            color: var(--primary);
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+        .tab-btn:hover:not(.active) { background: #eef4fa; }
+
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* ── CARD ── */
+        .card {
+            background: var(--white);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 2rem 2.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .card-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .card-title::after {
+            content: '';
+            flex: 1;
+            height: 2px;
+            background: linear-gradient(to right, var(--accent), transparent);
+            margin-left: 0.75rem;
+        }
+
+        /* ── AMOUNT SELECTION ── */
+        .amount-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+        }
+        .amount-option {
+            position: relative;
+            cursor: pointer;
+        }
+        .amount-option input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            width: 0; height: 0;
+        }
+        .amount-label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.1rem 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+            text-align: center;
+        }
+        .amount-label:hover { border-color: var(--accent); background: #fff9ee; }
+        .amount-option input:checked + .amount-label {
+            border-color: var(--accent);
+            background: #fff9ee;
+            box-shadow: 0 0 0 3px rgba(244,185,66,0.25);
+        }
+        .amount-value {
+            font-size: 1.6rem;
+            font-weight: 900;
+            color: var(--primary);
+            line-height: 1;
+        }
+        .amount-unit { font-size: 0.78rem; color: var(--muted); margin-top: 3px; }
+        .amount-tag {
+            font-size: 0.7rem;
+            background: var(--accent);
+            color: var(--primary);
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-weight: 700;
+            margin-top: 5px;
+        }
+        .custom-amount-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        .custom-amount-row label { font-size: 0.88rem; color: var(--muted); white-space: nowrap; }
+        .custom-amount-row input {
+            flex: 1;
+            padding: 0.6rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .custom-amount-row input:focus { border-color: var(--accent); }
+
+        /* ── FORM FIELDS ── */
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .form-group { display: flex; flex-direction: column; margin-bottom: 1rem; }
+        .form-group label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 0.35rem;
+        }
+        .form-group input, .form-group select {
+            padding: 0.7rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: 9px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            background: white;
+        }
+        .form-group input:focus, .form-group select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(244,185,66,0.18);
+        }
+        .form-group input.error { border-color: var(--danger); }
+        .field-error { font-size: 0.78rem; color: var(--danger); margin-top: 3px; }
+
+        /* ── CARD PAYMENT ── */
+        .secure-banner {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #eef8f0;
+            border: 1px solid #b8e4c5;
+            border-radius: 9px;
+            padding: 0.65rem 1rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.85rem;
+            color: #1a6630;
+        }
+        .card-number-group { position: relative; }
+        .card-number-group .card-icons {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            gap: 4px;
+        }
+        .card-icon {
+            width: 32px;
+            height: 20px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.55rem;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+        }
+        .card-icon.visa { background: #1a1f71; color: white; }
+        .card-icon.mc { background: linear-gradient(135deg, #eb001b 40%, #f79e1b 60%); color: white; }
+        .card-icon.cb { background: #005f86; color: white; }
+
+        .expiry-cvc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+        /* Numéro de carte stylisé */
+        .card-input-formatted {
+            font-family: 'Courier New', monospace;
+            letter-spacing: 0.1em;
+            font-size: 1.05rem;
+        }
+
+        /* ── SUMMARY ── */
+        .summary-box {
+            background: #f4f7fa;
+            border-radius: var(--radius);
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .summary-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.4rem 0;
+            font-size: 0.95rem;
+        }
+        .summary-line.total {
+            border-top: 2px solid var(--border);
+            margin-top: 0.5rem;
+            padding-top: 0.75rem;
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: var(--primary);
+        }
+        .summary-label { color: var(--muted); }
+        .summary-value { font-weight: 600; }
+
+        /* ── BUTTON ── */
+        .btn-pay {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+            color: var(--primary);
+            font-size: 1.1rem;
+            font-weight: 800;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+            transition: all 0.2s;
+            box-shadow: 0 4px 14px rgba(244,185,66,0.35);
+        }
+        .btn-pay:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(244,185,66,0.45); }
+        .btn-pay:active { transform: translateY(0); }
+        .btn-pay:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+        .legal-note {
+            text-align: center;
+            font-size: 0.78rem;
+            color: var(--muted);
+            margin-top: 1rem;
+            line-height: 1.5;
+        }
+
+        /* ── SUCCESS SCREEN ── */
+        #successScreen {
+            display: none;
+            text-align: center;
+            padding: 3rem 2rem;
+        }
+        .success-icon {
+            width: 90px;
+            height: 90px;
+            background: linear-gradient(135deg, #28a745, #20c960);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            font-size: 2.8rem;
+            box-shadow: 0 6px 24px rgba(40,167,69,0.3);
+        }
+        .success-title { font-size: 1.8rem; font-weight: 900; color: var(--primary); margin-bottom: 0.75rem; }
+        .success-sub { color: var(--muted); font-size: 1rem; max-width: 460px; margin: 0 auto 2rem; line-height: 1.6; }
+        .success-detail {
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 1.5rem 2rem;
+            max-width: 420px;
+            margin: 0 auto 2rem;
+            text-align: left;
+        }
+        .success-detail-line { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
+        .success-detail-line:last-child { border-bottom: none; }
+        .success-detail-line strong { color: var(--primary); }
+        .btn-back-home {
+            display: inline-block;
+            padding: 0.8rem 2.5rem;
+            background: var(--primary);
+            color: white;
+            border-radius: var(--radius);
+            text-decoration: none;
+            font-weight: 700;
+            transition: background 0.2s;
+        }
+        .btn-back-home:hover { background: var(--primary-dark); }
+
+        /* ── DONATION SPECIFIC ── */
+        .donation-message-note {
+            font-size: 0.82rem;
+            color: var(--muted);
+            margin-top: 0.3rem;
+        }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 640px) {
+            .card { padding: 1.5rem 1.25rem; }
+            .amount-grid { grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+            .amount-value { font-size: 1.3rem; }
+            .form-row { grid-template-columns: 1fr; }
+            .expiry-cvc-row { grid-template-columns: 1fr 1fr; }
+            .tab-btn { padding: 0.7rem 1.5rem; font-size: 0.9rem; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-container">
+        <div class="logo-section" onclick="location.href='index.html'" style="cursor:pointer;">
+            <div class="logo"></div>
+        </div>
+        <div style="display:flex; align-items:center; gap:1rem;">
+            <span style="color:rgba(255,255,255,0.7); font-size:0.9rem; font-weight:500;">💳 Paiement sécurisé</span>
+            <a href="index.html" class="header-back-link">← Retour à l'accueil</a>
+        </div>
+    </div>
+</header>
+
+<div class="container">
+
+    <!-- ONGLETS COTISATION / DON -->
+    <div class="tab-switcher">
+        <button class="tab-btn active" onclick="switchPayTab('cotisation')">🪪 Cotisation</button>
+        <button class="tab-btn" onclick="switchPayTab('don')">💝 Faire un don</button>
+    </div>
+
+    <!-- ════════════ ONGLET COTISATION ════════════ -->
+    <div id="panel-cotisation" class="tab-panel active">
+
+        <!-- Montant -->
+        <div class="card">
+            <div class="card-title">💶 Choisissez votre montant</div>
+            <div class="amount-grid">
+                <label class="amount-option">
+                    <input type="radio" name="cotisAmount" value="20" checked onchange="updateSummary('cotisation')">
+                    <div class="amount-label">
+                        <div class="amount-value">20</div>
+                        <div class="amount-unit">euros</div>
+                        <div class="amount-tag">Tarif de base</div>
+                    </div>
+                </label>
+                <label class="amount-option">
+                    <input type="radio" name="cotisAmount" value="30" onchange="updateSummary('cotisation')">
+                    <div class="amount-label">
+                        <div class="amount-value">30</div>
+                        <div class="amount-unit">euros</div>
+                        <div class="amount-tag">Soutien</div>
+                    </div>
+                </label>
+                <label class="amount-option">
+                    <input type="radio" name="cotisAmount" value="50" onchange="updateSummary('cotisation')">
+                    <div class="amount-label">
+                        <div class="amount-value">50</div>
+                        <div class="amount-unit">euros</div>
+                        <div class="amount-tag">Bienfaiteur</div>
+                    </div>
+                </label>
+            </div>
+            <div class="custom-amount-row">
+                <label>Autre montant :</label>
+                <input type="number" id="cotisCustom" min="20" step="1" placeholder="ex. 40" oninput="onCustomCotis()">
+                <span style="color:var(--muted); font-size:0.9rem;">€</span>
+            </div>
+            <p style="font-size:0.82rem; color:var(--muted);">
+                Toute cotisation supérieure à 20 € vous confère le statut de <strong>Membre Bienfaiteur (MB)</strong>.
+                La cotisation est valable jusqu'au 31 décembre de l'année en cours.
+            </p>
+        </div>
+
+        <!-- Informations personnelles -->
+        <div class="card">
+            <div class="card-title">👤 Vos informations</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nom *</label>
+                    <input type="text" id="cotisLastName" placeholder="Nom de famille" required>
+                    <span class="field-error" id="err-cotisLastName"></span>
+                </div>
+                <div class="form-group">
+                    <label>Prénom *</label>
+                    <input type="text" id="cotisFirstName" placeholder="Prénom" required>
+                    <span class="field-error" id="err-cotisFirstName"></span>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" id="cotisEmail" placeholder="votre@email.fr" required>
+                    <span class="field-error" id="err-cotisEmail"></span>
+                </div>
+                <div class="form-group">
+                    <label>Téléphone</label>
+                    <input type="tel" id="cotisPhone" placeholder="06 00 00 00 00">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Date de naissance</label>
+                    <input type="date" id="cotisBirth">
+                </div>
+                <div class="form-group">
+                    <label>Adresse postale</label>
+                    <input type="text" id="cotisAddress" placeholder="Ville ou adresse complète">
+                </div>
+            </div>
+        </div>
+
+        <!-- Paiement carte -->
+        <div class="card">
+            <div class="card-title">💳 Paiement par carte bancaire</div>
+            <div class="secure-banner">
+                🔒 <span>Paiement 100 % sécurisé · Connexion chiffrée SSL · Données protégées</span>
+            </div>
+            <div class="form-group card-number-group">
+                <label>Numéro de carte *</label>
+                <input type="text" id="cotisCardNumber" class="card-input-formatted"
+                    placeholder="0000  0000  0000  0000" maxlength="19"
+                    oninput="formatCardNumber(this)" required>
+                <div class="card-icons">
+                    <div class="card-icon visa">VISA</div>
+                    <div class="card-icon mc">MC</div>
+                    <div class="card-icon cb">CB</div>
+                </div>
+                <span class="field-error" id="err-cotisCard"></span>
+            </div>
+            <div class="form-group">
+                <label>Nom sur la carte *</label>
+                <input type="text" id="cotisCardName" placeholder="PRÉNOM NOM" style="text-transform:uppercase;" required>
+            </div>
+            <div class="expiry-cvc-row">
+                <div class="form-group">
+                    <label>Date d'expiration *</label>
+                    <input type="text" id="cotisExpiry" placeholder="MM / AA" maxlength="7"
+                        oninput="formatExpiry(this)" required>
+                    <span class="field-error" id="err-cotisExpiry"></span>
+                </div>
+                <div class="form-group">
+                    <label>Code CVC *</label>
+                    <input type="text" id="cotisCvc" placeholder="123" maxlength="4"
+                        oninput="this.value=this.value.replace(/\D/g,'')" required>
+                    <span class="field-error" id="err-cotisCvc"></span>
+                </div>
+            </div>
+
+            <!-- Récapitulatif -->
+            <div class="summary-box">
+                <div class="summary-line">
+                    <span class="summary-label">Cotisation annuelle</span>
+                    <span class="summary-value" id="cotis-line-amount">20,00 €</span>
+                </div>
+                <div class="summary-line">
+                    <span class="summary-label">Statut obtenu</span>
+                    <span class="summary-value" id="cotis-line-status" style="color:var(--success);">Membre Adhérent (MA)</span>
+                </div>
+                <div class="summary-line total">
+                    <span>Total à payer</span>
+                    <span id="cotis-total">20,00 €</span>
+                </div>
+            </div>
+
+            <button class="btn-pay" onclick="processPayment('cotisation')">
+                🔒 Payer <span id="cotis-btn-amount">20,00 €</span> — Valider ma cotisation
+            </button>
+            <p class="legal-note">
+                En validant, vous acceptez les <a href="#" style="color:var(--primary);">conditions générales</a> de l'association.<br>
+                Votre cotisation sera traitée de façon sécurisée. Aucune donnée de carte n'est conservée.
+            </p>
+        </div>
+    </div>
+
+    <!-- ════════════ ONGLET DON ════════════ -->
+    <div id="panel-don" class="tab-panel">
+
+        <!-- Montant don -->
+        <div class="card">
+            <div class="card-title">💶 Choisissez le montant de votre don</div>
+            <div class="amount-grid">
+                <label class="amount-option">
+                    <input type="radio" name="donAmount" value="20" checked onchange="updateSummary('don')">
+                    <div class="amount-label">
+                        <div class="amount-value">20</div>
+                        <div class="amount-unit">euros</div>
+                        <div class="amount-tag">Merci 🙏</div>
+                    </div>
+                </label>
+                <label class="amount-option">
+                    <input type="radio" name="donAmount" value="50" onchange="updateSummary('don')">
+                    <div class="amount-label">
+                        <div class="amount-value">50</div>
+                        <div class="amount-unit">euros</div>
+                        <div class="amount-tag">Généreux</div>
+                    </div>
+                </label>
+                <label class="amount-option">
+                    <input type="radio" name="donAmount" value="100" onchange="updateSummary('don')">
+                    <div class="amount-label">
+                        <div class="amount-value">100</div>
+                        <div class="amount-unit">euros</div>
+                        <div class="amount-tag">Grand donateur</div>
+                    </div>
+                </label>
+            </div>
+            <div class="custom-amount-row">
+                <label>Montant libre :</label>
+                <input type="number" id="donCustom" min="1" step="1" placeholder="ex. 35" oninput="onCustomDon()">
+                <span style="color:var(--muted); font-size:0.9rem;">€</span>
+            </div>
+            <p style="font-size:0.82rem; color:var(--muted);">
+                Vos dons contribuent directement aux activités de l'association et à l'entretien du site de Montety.
+                Un reçu fiscal peut être émis sur demande.
+            </p>
+        </div>
+
+        <!-- Informations donateur -->
+        <div class="card">
+            <div class="card-title">👤 Vos coordonnées</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nom *</label>
+                    <input type="text" id="donLastName" placeholder="Nom de famille" required>
+                    <span class="field-error" id="err-donLastName"></span>
+                </div>
+                <div class="form-group">
+                    <label>Prénom *</label>
+                    <input type="text" id="donFirstName" placeholder="Prénom" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" id="donEmail" placeholder="votre@email.fr" required>
+                    <span class="field-error" id="err-donEmail"></span>
+                </div>
+                <div class="form-group">
+                    <label>Téléphone</label>
+                    <input type="tel" id="donPhone" placeholder="06 00 00 00 00">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Message (optionnel)</label>
+                <input type="text" id="donMessage" placeholder="Un mot pour l'association...">
+                <p class="donation-message-note">Votre message sera transmis au bureau de l'association.</p>
+            </div>
+            <div class="form-group" style="flex-direction:row; align-items:center; gap:0.75rem;">
+                <input type="checkbox" id="donRecuFiscal" style="width:18px;height:18px;accent-color:var(--accent);">
+                <label for="donRecuFiscal" style="text-transform:none; font-size:0.88rem; font-weight:500; color:var(--primary); cursor:pointer;">
+                    Je souhaite recevoir un reçu fiscal pour ce don
+                </label>
+            </div>
+        </div>
+
+        <!-- Carte bancaire don -->
+        <div class="card">
+            <div class="card-title">💳 Paiement par carte bancaire</div>
+            <div class="secure-banner">
+                🔒 <span>Paiement 100 % sécurisé · Connexion chiffrée SSL · Données protégées</span>
+            </div>
+            <div class="form-group card-number-group">
+                <label>Numéro de carte *</label>
+                <input type="text" id="donCardNumber" class="card-input-formatted"
+                    placeholder="0000  0000  0000  0000" maxlength="19"
+                    oninput="formatCardNumber(this)" required>
+                <div class="card-icons">
+                    <div class="card-icon visa">VISA</div>
+                    <div class="card-icon mc">MC</div>
+                    <div class="card-icon cb">CB</div>
+                </div>
+                <span class="field-error" id="err-donCard"></span>
+            </div>
+            <div class="form-group">
+                <label>Nom sur la carte *</label>
+                <input type="text" id="donCardName" placeholder="PRÉNOM NOM" style="text-transform:uppercase;" required>
+            </div>
+            <div class="expiry-cvc-row">
+                <div class="form-group">
+                    <label>Date d'expiration *</label>
+                    <input type="text" id="donExpiry" placeholder="MM / AA" maxlength="7"
+                        oninput="formatExpiry(this)" required>
+                    <span class="field-error" id="err-donExpiry"></span>
+                </div>
+                <div class="form-group">
+                    <label>Code CVC *</label>
+                    <input type="text" id="donCvc" placeholder="123" maxlength="4"
+                        oninput="this.value=this.value.replace(/\D/g,'')" required>
+                    <span class="field-error" id="err-donCvc"></span>
+                </div>
+            </div>
+
+            <!-- Récapitulatif don -->
+            <div class="summary-box">
+                <div class="summary-line">
+                    <span class="summary-label">Votre don</span>
+                    <span class="summary-value" id="don-line-amount">20,00 €</span>
+                </div>
+                <div class="summary-line total">
+                    <span>Total à payer</span>
+                    <span id="don-total">20,00 €</span>
+                </div>
+            </div>
+
+            <button class="btn-pay" onclick="processPayment('don')">
+                🔒 Faire un don de <span id="don-btn-amount">20,00 €</span>
+            </button>
+            <p class="legal-note">
+                Votre don sera traité de façon sécurisée. Aucune donnée de carte n'est conservée.<br>
+                Association loi 1901 — siège social : 13 bd Commandant Nicolas, 83100 Toulon.
+            </p>
+        </div>
+    </div>
+
+    <!-- ════════════ ÉCRAN SUCCÈS ════════════ -->
+    <div id="successScreen">
+        <div class="success-icon">✓</div>
+        <div class="success-title" id="success-title">Paiement confirmé !</div>
+        <p class="success-sub" id="success-sub">
+            Merci pour votre soutien à l'association Les Amis de Montety.
+            Un email de confirmation vous a été envoyé.
+        </p>
+        <div class="success-detail" id="success-detail"></div>
+        <a href="index.html" class="btn-back-home">← Retourner au site</a>
+    </div>
+
+</div><!-- /container -->
+
+<script>
+// ═══════════════════════════════════════════
+//  NAVIGATION ONGLETS
+// ═══════════════════════════════════════════
+function switchPayTab(tab) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('panel-' + tab).classList.add('active');
+    event.currentTarget.classList.add('active');
+}
+
+// ═══════════════════════════════════════════
+//  FORMATAGE CARTE
+// ═══════════════════════════════════════════
+function formatCardNumber(input) {
+    let v = input.value.replace(/\D/g, '').substring(0, 16);
+    input.value = v.replace(/(.{4})/g, '$1  ').trim();
+}
+
+function formatExpiry(input) {
+    let v = input.value.replace(/\D/g, '').substring(0, 4);
+    if (v.length >= 3) v = v.substring(0,2) + ' / ' + v.substring(2);
+    input.value = v;
+}
+
+// ═══════════════════════════════════════════
+//  CALCUL MONTANTS
+// ═══════════════════════════════════════════
+function getSelectedAmount(prefix) {
+    if (prefix === 'cotisation') {
+        const custom = document.getElementById('cotisCustom').value;
+        if (custom && parseFloat(custom) > 0) return parseFloat(custom);
+        const sel = document.querySelector('input[name="cotisAmount"]:checked');
+        return sel ? parseFloat(sel.value) : 20;
+    } else {
+        const custom = document.getElementById('donCustom').value;
+        if (custom && parseFloat(custom) > 0) return parseFloat(custom);
+        const sel = document.querySelector('input[name="donAmount"]:checked');
+        return sel ? parseFloat(sel.value) : 20;
+    }
+}
+
+function fmt(amount) {
+    return amount.toFixed(2).replace('.', ',') + ' €';
+}
+
+function updateSummary(type) {
+    const amount = getSelectedAmount(type);
+    const fmtd = fmt(amount);
+    if (type === 'cotisation') {
+        document.getElementById('cotis-line-amount').textContent = fmtd;
+        document.getElementById('cotis-total').textContent = fmtd;
+        document.getElementById('cotis-btn-amount').textContent = fmtd;
+        const status = amount > 20
+            ? 'Membre Bienfaiteur (MB)'
+            : 'Membre Adhérent (MA)';
+        document.getElementById('cotis-line-status').textContent = status;
+        document.getElementById('cotis-line-status').style.color = amount > 20 ? '#e0a52e' : '#28a745';
+    } else {
+        document.getElementById('don-line-amount').textContent = fmtd;
+        document.getElementById('don-total').textContent = fmtd;
+        document.getElementById('don-btn-amount').textContent = fmtd;
+    }
+}
+
+function onCustomCotis() {
+    document.querySelectorAll('input[name="cotisAmount"]').forEach(r => r.checked = false);
+    updateSummary('cotisation');
+}
+
+function onCustomDon() {
+    document.querySelectorAll('input[name="donAmount"]').forEach(r => r.checked = false);
+    updateSummary('don');
+}
+
+// ═══════════════════════════════════════════
+//  VALIDATION
+// ═══════════════════════════════════════════
+function clearErrors(prefix) {
+    document.querySelectorAll('[id^="err-' + prefix + '"]').forEach(e => e.textContent = '');
+    document.querySelectorAll('#panel-' + prefix + ' input').forEach(i => i.classList.remove('error'));
+}
+
+function showError(id, msg) {
+    const el = document.getElementById('err-' + id);
+    const input = document.getElementById(id);
+    if (el) el.textContent = msg;
+    if (input) input.classList.add('error');
+    return false;
+}
+
+function validateLuhn(num) {
+    const digits = num.replace(/\D/g, '');
+    let sum = 0, alt = false;
+    for (let i = digits.length - 1; i >= 0; i--) {
+        let n = parseInt(digits[i]);
+        if (alt) { n *= 2; if (n > 9) n -= 9; }
+        sum += n;
+        alt = !alt;
+    }
+    return sum % 10 === 0 && digits.length >= 13;
+}
+
+function validateForm(type) {
+    clearErrors(type);
+    let ok = true;
+    const p = type === 'cotisation' ? 'cotis' : 'don';
+
+    const lastName  = document.getElementById(p + 'LastName').value.trim();
+    const email     = document.getElementById(p + 'Email').value.trim();
+    const cardNum   = document.getElementById(p + 'CardNumber').value;
+    const expiry    = document.getElementById(p + 'Expiry').value;
+    const cvc       = document.getElementById(p + 'Cvc').value;
+
+    if (!lastName) { showError(p + 'LastName', 'Le nom est requis'); ok = false; }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showError(p + 'Email', 'Email invalide'); ok = false;
+    }
+    if (!validateLuhn(cardNum)) {
+        showError(p + 'Card', 'Numéro de carte invalide'); ok = false;
+    }
+
+    // Expiry check
+    const expiryClean = expiry.replace(/\s/g, '').replace('/', '');
+    if (expiryClean.length < 4) {
+        showError(p + 'Expiry', 'Date invalide'); ok = false;
+    } else {
+        const month = parseInt(expiryClean.substring(0, 2));
+        const year  = parseInt('20' + expiryClean.substring(2, 4));
+        const now   = new Date();
+        if (month < 1 || month > 12 || year < now.getFullYear() ||
+            (year === now.getFullYear() && month < now.getMonth() + 1)) {
+            showError(p + 'Expiry', 'Carte expirée'); ok = false;
+        }
+    }
+
+    if (cvc.length < 3) { showError(p + 'Cvc', 'CVC invalide'); ok = false; }
+
+    return ok;
+}
+
+// ═══════════════════════════════════════════
+//  TRAITEMENT PAIEMENT (simulation)
+// ═══════════════════════════════════════════
+function processPayment(type) {
+    if (!validateForm(type)) return;
+
+    const amount = getSelectedAmount(type);
+    const p = type === 'cotisation' ? 'cotis' : 'don';
+    const btn = document.querySelector('#panel-' + type + ' .btn-pay');
+
+    // Animation de chargement
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display:inline-block;animation:spin 1s linear infinite">⏳</span> Traitement en cours…';
+
+    // Simulation paiement (2.5 secondes)
+    setTimeout(() => {
+        const lastName  = document.getElementById(p + 'LastName').value.trim();
+        const firstName = document.getElementById(type === 'cotisation' ? 'cotisFirstName' : 'donFirstName').value.trim();
+        const email     = document.getElementById(p + 'Email').value.trim();
+        const cardNum   = document.getElementById(p + 'CardNumber').value.replace(/\s/g, '');
+        const last4     = cardNum.slice(-4);
+        const now       = new Date();
+        const transId   = 'MONT-' + now.getFullYear() + '-' + String(Date.now()).slice(-6);
+
+        // Sauvegarder dans localStorage pour le tableau admin
+        if (type === 'cotisation') {
+            saveCotisationToAdmin(firstName, lastName, email,
+                document.getElementById('cotisPhone').value,
+                document.getElementById('cotisBirth').value,
+                document.getElementById('cotisAddress').value,
+                amount);
+        } else {
+            saveDonToAdmin(firstName, lastName, email, amount,
+                document.getElementById('donMessage').value);
+        }
+
+        // Afficher l'écran succès
+        showSuccess(type, firstName + ' ' + lastName, email, amount, last4, transId, now);
+    }, 2500);
+}
+
+function showSuccess(type, name, email, amount, last4, transId, date) {
+    // Masquer les panels
+    document.querySelector('.tab-switcher').style.display = 'none';
+    document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+    document.getElementById('successScreen').style.display = 'block';
+
+    const isCotis = type === 'cotisation';
+    document.getElementById('success-title').textContent = isCotis
+        ? '🎉 Cotisation validée !'
+        : '💝 Don enregistré, merci !';
+    document.getElementById('success-sub').textContent = isCotis
+        ? `Bienvenue dans l'association ! Votre cotisation de ${fmt(amount)} a bien été enregistrée. Un email de confirmation a été envoyé à ${email}.`
+        : `Merci pour votre générosité ! Votre don de ${fmt(amount)} contribue directement aux activités de l'association. Un email de confirmation a été envoyé à ${email}.`;
+
+    const status = isCotis
+        ? (amount > 20 ? 'Membre Bienfaiteur (MB)' : 'Membre Adhérent (MA)')
+        : '—';
+
+    document.getElementById('success-detail').innerHTML = `
+        <div class="success-detail-line"><span>Bénéficiaire</span><strong>${name}</strong></div>
+        <div class="success-detail-line"><span>Email</span><strong>${email}</strong></div>
+        <div class="success-detail-line"><span>Montant</span><strong>${fmt(amount)}</strong></div>
+        ${isCotis ? `<div class="success-detail-line"><span>Statut</span><strong style="color:#28a745;">${status}</strong></div>` : ''}
+        <div class="success-detail-line"><span>Carte</span><strong>•••• •••• •••• ${last4}</strong></div>
+        <div class="success-detail-line"><span>Date</span><strong>${date.toLocaleDateString('fr-FR')} à ${date.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})}</strong></div>
+        <div class="success-detail-line"><span>Référence</span><strong>${transId}</strong></div>
+    `;
+}
+
+// ═══════════════════════════════════════════
+//  SAUVEGARDE VERS ADMIN (localStorage)
+// ═══════════════════════════════════════════
+function saveCotisationToAdmin(firstName, lastName, email, phone, birthDate, address, amount) {
+    try {
+        const members = JSON.parse(localStorage.getItem('montety_accepted_members')) || [];
+        const existing = members.find(m => m.email === email);
+        const memberType = amount > 20 ? 'MB' : 'MA';
+
+        if (existing) {
+            existing.paid = true;
+            existing.paymentDate = new Date().toISOString();
+            existing.memberType = memberType;
+            if (phone) existing.phone = phone;
+        } else {
+            members.push({
+                id: Date.now(),
+                lastName, firstName, email,
+                phone: phone || '',
+                birthDate: birthDate || '',
+                address: address || '',
+                joinDate: new Date().toISOString(),
+                paid: true,
+                memberType,
+                paymentDate: new Date().toISOString()
+            });
+        }
+        localStorage.setItem('montety_accepted_members', JSON.stringify(members));
+
+        // Enregistrer aussi dans les dons si > 20€
+        if (amount > 20) {
+            const donations = JSON.parse(localStorage.getItem('montety_donations')) || [];
+            donations.push({
+                id: Date.now(),
+                name: firstName + ' ' + lastName,
+                email, amount,
+                message: 'Cotisation Membre Bienfaiteur',
+                date: new Date().toISOString()
+            });
+            localStorage.setItem('montety_donations', JSON.stringify(donations));
+        }
+    } catch(e) { console.error('Erreur sauvegarde cotisation:', e); }
+}
+
+function saveDonToAdmin(firstName, lastName, email, amount, message) {
+    try {
+        const donations = JSON.parse(localStorage.getItem('montety_donations')) || [];
+        donations.push({
+            id: Date.now(),
+            name: firstName + ' ' + lastName,
+            email, amount,
+            message: message || '',
+            date: new Date().toISOString()
+        });
+        localStorage.setItem('montety_donations', JSON.stringify(donations));
+    } catch(e) { console.error('Erreur sauvegarde don:', e); }
+}
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function() {
+    updateSummary('cotisation');
+    updateSummary('don');
+
+    // Remplissage depuis URL params (ex: ?type=don)
+    const params = new URLSearchParams(window.location.search);
+    const type = params.get('type');
+    if (type === 'don') {
+        document.querySelectorAll('.tab-btn').forEach((b, i) => {
+            b.classList.toggle('active', i === 1);
+        });
+        document.getElementById('panel-cotisation').classList.remove('active');
+        document.getElementById('panel-don').classList.add('active');
+    }
+});
+</script>
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faire un don - Les Amis de Montety</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        .don-container {
+            max-width: 600px;
+            margin: 4rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        .don-container h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .donation-amounts {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        .amount-btn {
+            flex: 1;
+            padding: 0.8rem;
+            background: var(--primary-light);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            cursor: pointer;
+            text-align: center;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .amount-btn:hover, .amount-btn.selected {
+            background: var(--accent-color);
+            color: var(--primary-color);
+            border-color: var(--accent-color);
+        }
+        .header-back-link {
+            color: rgba(255,255,255,0.85);
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 600;
+            border: 1.5px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
+            padding: 0.35rem 0.9rem;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        .header-back-link:hover { background: rgba(255,255,255,0.12); color: white; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <div class="logo-section" onclick="location.href='../index.html'" style="cursor:pointer;">
+                <div class="logo"></div>
+            </div>
+            <div style="display:flex; align-items:center; gap:1rem;">
+                <span style="color:rgba(255,255,255,0.7); font-size:0.9rem; font-weight:500;">❤️ Faire un don</span>
+                <a href="../index.html" class="header-back-link">← Retour à l'accueil</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="don-container">
+        <h1>❤️ Faire un don</h1>
+        <p style="text-align: center; margin-bottom: 2rem;">Votre don soutient nos actions intergénérationnelles et solidaires.</p>
+        
+        <form onsubmit="submitDonation(event)">
+            <div class="form-group"><label>Nom complet *</label><input type="text" id="donationName" required></div>
+            <div class="form-group"><label>Email *</label><input type="email" id="donationEmail" required></div>
+            
+            <div class="form-group"><label>Montant du don (€)</label>
+                <div class="donation-amounts">
+                    <div class="amount-btn" onclick="setAmount(10)">10€</div>
+                    <div class="amount-btn" onclick="setAmount(20)">20€</div>
+                    <div class="amount-btn" onclick="setAmount(50)">50€</div>
+                    <div class="amount-btn" onclick="setAmount(100)">100€</div>
+                </div>
+                <input type="number" id="donationAmount" placeholder="Autre montant" min="1" step="1">
+            </div>
+            
+            <div class="form-group"><label>Message (optionnel)</label><textarea id="donationMessage" rows="3" placeholder="Votre message d'encouragement..."></textarea></div>
+            
+            <div class="form-group"><label>Souhaitez-vous un reçu fiscal ?</label>
+                <select id="donationReceipt">
+                    <option value="yes">Oui, je souhaite un reçu fiscal</option>
+                    <option value="no">Non, merci</option>
+                </select>
+            </div>
+            
+            <div class="button-group">
+                <button type="submit" class="btn-primary btn-donate">❤️ Donner</button>
+                <button type="button" class="btn-secondary" onclick="location.href='../index.html'">Annuler</button>
+            </div>
+        </form>
+        
+        <p style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-muted); text-align: center;">
+            Les dons à notre association ouvrent droit à une réduction d'impôt de 66% du montant versé.
+        </p>
+        <div style="text-align:center; margin-top:1.2rem;">
+            <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:0.75rem;">Ou faites votre don directement en ligne en toute sécurité :</p>
+            <a href="../paiement.html?type=don" style="display:inline-block; padding:0.8rem 2rem; background:linear-gradient(135deg,#f4b942,#e0a52e); color:#24435d; font-weight:800; border-radius:12px; text-decoration:none; font-size:1rem; box-shadow:0 4px 14px rgba(244,185,66,0.35);">
+                💳 Faire un don en ligne
+            </a>
+        </div>
+    </div>
+
+    <footer>
+        <div class="footer-bottom"><p>&copy; 2026 Les Amis de Montety - Association de loi 1901 à Toulon.</p></div>
+    </footer>
+
+    <script>
+        function setAmount(amount) {
+            document.getElementById('donationAmount').value = amount;
+            document.querySelectorAll('.amount-btn').forEach(btn => btn.classList.remove('selected'));
+            event.target.classList.add('selected');
+        }
+        
+        function submitDonation(e) {
+            e.preventDefault();
+            const donation = {
+                id: Date.now(),
+                name: document.getElementById('donationName').value,
+                email: document.getElementById('donationEmail').value,
+                amount: parseFloat(document.getElementById('donationAmount').value),
+                message: document.getElementById('donationMessage').value,
+                receipt: document.getElementById('donationReceipt').value,
+                date: new Date().toISOString()
+            };
+            
+            const donations = JSON.parse(localStorage.getItem('montety_donations') || '[]');
+            donations.push(donation);
+            localStorage.setItem('montety_donations', JSON.stringify(donations));
+            
+            window.open(`mailto:${donation.email}?subject=Merci pour votre don&body=Bonjour ${donation.name},\n\nMerci infiniment pour votre don de ${donation.amount}€. Votre soutien est précieux pour nos actions.\n\nCordialement,\nL'équipe des Amis de Montety`, '_blank');
+            
+            alert(`Merci ${donation.name} pour votre don de ${donation.amount}€ !\nUn email de confirmation va s'ouvrir.`);
+            window.location.href = '../index.html';
+        }
+    </script>
+</body>
+</html>

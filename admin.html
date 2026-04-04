@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Les Amis de Montety - Administration</title>
+    <!-- Dépendances -->
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css' rel='stylesheet' />
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/locales/fr.global.min.js'></script>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'></script>
+    <link rel="stylesheet" href="css/admin.css">
+    <style>
+        .login-modal {
+            display: flex;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+        }
+        
+        .login-modal.hidden {
+            display: none;
+        }
+        
+        .login-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            max-width: 400px;
+            width: 90%;
+        }
+        
+        .login-container h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(244, 185, 66, 0.1);
+        }
+        
+        .login-button {
+            width: 100%;
+            padding: 0.8rem;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+        
+        .login-button:hover {
+            background: var(--accent-color);
+            color: var(--primary-color);
+        }
+        
+        .error-message {
+            color: #dc3545;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        
+        .forgot-password {
+            text-align: center;
+            margin-top: 1rem;
+        }
+        
+        .forgot-password a {
+            color: var(--accent-color);
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        
+        .forgot-password a:hover {
+            text-decoration: underline;
+        }
+
+        /* ── UPLOAD PIÈCE JOINTE ÉVÉNEMENT ── */
+        .file-upload-zone {
+            border: 2px dashed #c8d8e8;
+            border-radius: 12px;
+            padding: 1.2rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            background: #fafbfc;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .file-upload-zone:hover {
+            border-color: var(--accent-color, #f4b942);
+            background: #fffdf5;
+        }
+        .file-upload-icon { font-size: 1.6rem; margin-bottom: 0.3rem; }
+        .file-upload-text { font-size: 0.88rem; font-weight: 600; color: #24435d; }
+        .file-upload-hint { font-size: 0.76rem; color: #a0aec0; margin-top: 0.2rem; }
+        .attach-preview-img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 10px;
+            border: 2px solid #e2e8f0;
+            display: block;
+        }
+        .attach-preview-file {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            background: #f8f9fa;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 0.6rem 0.9rem;
+        }
+        .attach-remove-btn {
+            margin-left: auto;
+            background: #fdecea;
+            color: #c62828;
+            border: none;
+            border-radius: 6px;
+            padding: 0.25rem 0.6rem;
+            cursor: pointer;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+        .attach-remove-btn:hover { background: #ffcdd2; }
+
+    </style>
+</head>
+<body>
+
+<!-- LOGIN MODAL -->
+<div id="loginModal" class="login-modal">
+    <div class="login-container">
+        <h1>🔐 Connexion Administration</h1>
+        <div id="loginError" class="error-message" style="display: none;"></div>
+        <form onsubmit="handleLogin(event)" id="loginForm">
+            <div class="form-group">
+                <label for="loginEmail">Email</label>
+                <input type="email" id="loginEmail" required placeholder="Votre email administrateur">
+            </div>
+            <div class="form-group">
+                <label for="loginPassword">Mot de passe</label>
+                <div style="position:relative;">
+                    <input type="password" id="loginPassword" required placeholder="Votre mot de passe"
+                        style="width:100%; padding-right:2.8rem; box-sizing:border-box;">
+                    <button type="button" onclick="toggleLoginPwd()"
+                        style="position:absolute; right:0.6rem; top:50%; transform:translateY(-50%);
+                               background:none; border:none; cursor:pointer; font-size:1.2rem;
+                               color:#888; padding:0.2rem 0.3rem; line-height:1;"
+                        title="Afficher / masquer le mot de passe" id="togglePwdBtn">👁️</button>
+                </div>
+            </div>
+            <button type="submit" class="login-button">Se connecter</button>
+        </form>
+        <div class="forgot-password">
+            <a href="#" onclick="showForgotPasswordModal(event)">Mot de passe oublié ?</a>
+        </div>
+        <div style="text-align:center; margin-top:1.2rem; border-top:1px solid #eee; padding-top:1rem;">
+            <a href="index.html" style="color:var(--text-muted); font-size:0.9rem; text-decoration:none; display:inline-flex; align-items:center; gap:0.4rem; transition:color 0.2s;"
+               onmouseover="this.style.color='var(--primary-color)'" onmouseout="this.style.color='var(--text-muted)'">
+                ← Retour à l'accueil
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- PAGE ADMIN -->
+<div id="adminContainer" style="display: none;">
+    <div class="admin-layout">
+        
+        <!-- SIDEBAR NAVIGATION -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="admin-logo" onclick="location.href='index.html'" title="Retour à l'accueil" style="cursor:pointer;"></div>
+                <p id="userInfo" style="font-size: 0.8rem; margin-top: 0.5rem;"></p>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="sidebar-item active" data-tab="dashboard" onclick="switchTab('dashboard')" style="cursor:pointer;">
+                    <span>📊</span> Dashboard
+                </div>
+                <div class="sidebar-item" data-tab="members" onclick="switchTab('members')" style="cursor:pointer;">
+                    <span>👥</span> Adhérents
+                </div>
+                <div class="sidebar-item" data-tab="council" onclick="switchTab('council')" style="cursor:pointer;">
+                    <span>👑</span> Gestion du bureau
+                </div>
+                <div class="sidebar-item" data-tab="budget" onclick="switchTab('budget')" style="cursor:pointer;">
+                    <span>💰</span> Budget
+                </div>
+                <div class="sidebar-item" data-tab="events" onclick="switchTab('events')" style="cursor:pointer;">
+                    <span>📅</span> Événements
+                    <span id="unreadQuestionsBadge" class="unread-badge" style="display:none; margin-left:auto;">0</span>
+                </div>
+                <div class="sidebar-item" data-tab="messages" onclick="switchTab('messages')" style="cursor:pointer;">
+                    <span>💬</span> Messages
+                    <span id="unreadMessagesBadge" class="unread-badge" style="display: none;">0</span>
+                </div>
+                <!-- Tab Accès : visible uniquement super admin -->
+                <div class="sidebar-item" id="sidebarAccessItem" data-tab="access" onclick="switchTab('access')" style="display:none; cursor:pointer;">
+                    <span>🔐</span> Gestion des accès
+                </div>
+                <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 1rem 0;">
+                <div class="sidebar-item" onclick="logout()">
+                    <span>🚪</span> Déconnexion
+                </div>
+            </nav>
+        </div>
+        
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
+            
+            <!-- HEADER -->
+            <div class="admin-header">
+                <div><h1 id="pageTitle">Dashboard</h1></div>
+                <div style="display:flex; align-items:center; gap:0.75rem;">
+                    <span id="userInfo" style="font-size:0.85rem; color:var(--text-muted);"></span>
+                    <button class="btn btn-secondary" id="settingsBtn" onclick="showSettingsModal()" title="Paramètres du compte">⚙️ Paramètres</button>
+                </div>
+            </div>
+            
+            <!-- TAB DASHBOARD -->
+            <div id="tab-dashboard" class="tab-content active">
+
+                <!-- ── FILTRE DATE ── -->
+                <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; background:#f5f7fa; border:1px solid var(--border-color); border-radius:12px; padding:0.8rem 1.25rem; margin-bottom:1.5rem;">
+                    <span style="font-size:0.85rem; font-weight:700; color:var(--primary-color); white-space:nowrap;">📅 Période :</span>
+                    <button class="dash-filter-btn active" onclick="setDashFilter('all',this)">Tout</button>
+                    <button class="dash-filter-btn" onclick="setDashFilter('year',this)">Cette année</button>
+                    <button class="dash-filter-btn" onclick="setDashFilter('6months',this)">6 mois</button>
+                    <button class="dash-filter-btn" onclick="setDashFilter('3months',this)">3 mois</button>
+                    <span style="font-size:0.82rem; color:var(--text-muted);">ou</span>
+                    <label style="font-size:0.82rem; color:var(--text-muted); display:flex; align-items:center; gap:0.4rem;">
+                        Du <input type="date" id="dashFrom" onchange="setDashFilter('custom')" style="padding:0.3rem 0.5rem; border:1px solid var(--border-color); border-radius:6px; font-size:0.82rem;">
+                    </label>
+                    <label style="font-size:0.82rem; color:var(--text-muted); display:flex; align-items:center; gap:0.4rem;">
+                        Au <input type="date" id="dashTo" onchange="setDashFilter('custom')" style="padding:0.3rem 0.5rem; border:1px solid var(--border-color); border-radius:6px; font-size:0.82rem;">
+                    </label>
+                    <span id="dashFilterLabel" style="margin-left:auto; font-size:0.8rem; color:var(--text-muted); font-style:italic;"></span>
+                </div>
+
+                <!-- ── STATS ADHÉRENTS (snapshot actuel) ── -->
+                <p style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; margin:0 0 .6rem;">👥 Adhérents — état actuel</p>
+                <div class="dashboard-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); margin-bottom:1rem;">
+                    <div class="stat-card"><div class="stat-label">Total inscrits</div><div class="stat-value" id="stat-members">0</div></div>
+                    <div class="stat-card success"><div class="stat-label">Actifs</div><div class="stat-value" id="stat-active">0</div></div>
+                    <div class="stat-card success"><div class="stat-label">MA — Adhérents</div><div class="stat-value" id="stat-ma">0</div></div>
+                    <div class="stat-card accent"><div class="stat-label">MB — Bienfaiteurs</div><div class="stat-value" id="stat-mb">0</div></div>
+                    <div class="stat-card" style="border-left:4px solid #6f42c1;"><div class="stat-label">MH — Honneur</div><div class="stat-value" id="stat-mh" style="color:#6f42c1;">0</div></div>
+                    <div class="stat-card danger"><div class="stat-label">Inactifs</div><div class="stat-value" id="stat-inactif">0</div></div>
+                </div>
+
+                <!-- ── STATS PÉRIODE (filtrées par date) ── -->
+                <p style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; margin:0 0 .6rem;">📊 Sur la période sélectionnée</p>
+                <div class="dashboard-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); margin-bottom:1.5rem;">
+                    <div class="stat-card"><div class="stat-label">Nouveaux membres</div><div class="stat-value" id="stat-new">0</div></div>
+                    <div class="stat-card accent"><div class="stat-label">Cotisations</div><div class="stat-value" id="stat-paid">0 €</div></div>
+                    <div class="stat-card success"><div class="stat-label">Dons reçus</div><div class="stat-value" id="stat-donations">0 €</div></div>
+                    <div class="stat-card danger"><div class="stat-label">Dépenses</div><div class="stat-value" id="stat-expenses">0 €</div></div>
+                    <div class="stat-card"><div class="stat-label">Solde</div><div class="stat-value" id="stat-balance">0 €</div></div>
+                    <div class="stat-card accent"><div class="stat-label">Événements validés</div><div class="stat-value" id="stat-events">0</div></div>
+                </div>
+
+                <!-- ── GRAPHIQUES CÔTE À CÔTE ── -->
+                <div class="charts-row">
+                    <div class="chart-container">
+                        <div class="chart-title">📈 Recettes par mois</div>
+                        <canvas id="revenueChart" style="max-height:240px;"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title">👥 Évolution des adhésions</div>
+                        <canvas id="membershipEvolutionChart" style="max-height:240px;"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- TAB MEMBERS -->
+            <div id="tab-members" class="tab-content">
+                <div class="btn-group">
+                    <button id="showMemberModalBtn" class="btn btn-primary">+ Ajouter adhérent</button>
+                    <button id="exportMembersBtn" class="btn btn-secondary">📥 Exporter</button>
+                    <button id="openMailingListBtn" class="btn btn-primary" style="background:var(--accent-color);color:var(--primary-color);">📧 Liste de diffusion</button>
+                </div>
+                <!-- Barre de recherche / filtrage -->
+                <div class="member-search-bar">
+                    <input type="text" id="memberSearchInput" placeholder="🔍 Filtrer par nom, prénom, email, téléphone, date..." oninput="filterMembers()">
+                    <span id="memberSearchCount" class="search-count"></span>
+                </div>
+                <div class="table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="selectAllMembers" title="Sélectionner toutes les lignes affichées"></th>
+                                <th class="sortable" onclick="sortMemberCol('lastName')" title="Trier">Nom <span class="sort-icon" id="sort-lastName"></span></th>
+                                <th class="sortable" onclick="sortMemberCol('firstName')" title="Trier">Prénom <span class="sort-icon" id="sort-firstName"></span></th>
+                                <th class="sortable" onclick="sortMemberCol('email')" title="Trier">Email <span class="sort-icon" id="sort-email"></span></th>
+                                <th>Téléphone</th>
+                                <th class="sortable" onclick="sortMemberCol('type')" title="Trier">Type <span class="sort-icon" id="sort-type"></span></th>
+                                <th class="sortable" onclick="sortMemberCol('joinDate')" title="Trier">Adhésion <span class="sort-icon" id="sort-joinDate"></span></th>
+                                <th class="sortable" onclick="sortMemberCol('endDate')" title="Trier">Fin validité <span class="sort-icon" id="sort-endDate"></span></th>
+                                <th class="sortable" onclick="sortMemberCol('paid')" title="Trier">Cotisation <span class="sort-icon" id="sort-paid"></span></th>
+                                <th class="sortable" onclick="sortMemberCol('paymentAmount')" title="Trier">Montant <span class="sort-icon" id="sort-paymentAmount"></span></th>
+                                <th class="sortable" onclick="sortMemberCol('paymentMethod')" title="Trier">Paiement <span class="sort-icon" id="sort-paymentMethod"></span></th>
+                                <th>Actions</th>
+                            </tr>
+                            <tr id="memberFilterRow">
+                                <td></td>
+                                <td><input class="col-filter" placeholder="Filtrer…" oninput="setMemberColFilter('lastName',this.value)"></td>
+                                <td><input class="col-filter" placeholder="Filtrer…" oninput="setMemberColFilter('firstName',this.value)"></td>
+                                <td><input class="col-filter" placeholder="Filtrer…" oninput="setMemberColFilter('email',this.value)"></td>
+                                <td><input class="col-filter" placeholder="Filtrer…" oninput="setMemberColFilter('phone',this.value)"></td>
+                                <td><select class="col-filter" onchange="setMemberColFilter('type',this.value)">
+                                    <option value="">Tous</option>
+                                    <option value="MA">MA</option>
+                                    <option value="MB">MB</option>
+                                    <option value="MH">MH</option>
+                                    <option value="inactif">Inactif</option>
+                                </select></td>
+                                <td><input class="col-filter" type="date" oninput="setMemberColFilter('joinDate',this.value)" title="Filtrer à partir de cette date"></td>
+                                <td></td>
+                                <td><select class="col-filter" onchange="setMemberColFilter('paid',this.value)">
+                                    <option value="">Tous</option>
+                                    <option value="1">Payée</option>
+                                    <option value="0">Non payée</option>
+                                </select></td>
+                                <td><input class="col-filter" type="number" min="0" placeholder="≥ montant" oninput="setMemberColFilter('paymentAmount',this.value)"></td>
+                                <td><select class="col-filter" onchange="setMemberColFilter('paymentMethod',this.value)">
+                                    <option value="">Tous</option>
+                                    <option value="cheque">Chèque</option>
+                                    <option value="liquide">Liquide</option>
+                                    <option value="virement">Virement</option>
+                                    <option value="cb">CB</option>
+                                </select></td>
+                                <td></td>
+                            </tr>
+                        </thead>
+                        <tbody id="membersList"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB EVENTS -->
+            <div id="tab-events" class="tab-content">
+                <div class="btn-group">
+                    <button id="showAddEventModalBtn" class="btn btn-primary">+ Ajouter événement</button>
+                </div>
+                <!-- Calendrier -->
+                <div style="background:white; border-radius:12px; padding:1.5rem; box-shadow:0 2px 8px rgba(0,0,0,0.08); margin-bottom:1.5rem;">
+                    <div id="adminCalendar"></div>
+                </div>
+                <!-- Liste des événements -->
+                <div class="table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Titre</th>
+                                <th>Date</th>
+                                <th>Lieu</th>
+                                <th>Statut visa</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="eventsList"></tbody>
+                    </table>
+                </div>
+
+                <!-- Section Questions des visiteurs -->
+                <div style="background:white; border-radius:12px; padding:1.5rem; box-shadow:0 2px 8px rgba(0,0,0,0.08); margin-top:1.5rem;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+                        <h3 style="font-size:1rem; font-weight:700; color:var(--primary-color);">
+                            ❓ Questions des visiteurs
+                            <span id="unreadQuestionsCount" style="background:#f4b942; color:#24435d; border-radius:20px; padding:2px 10px; font-size:0.78rem; font-weight:800; margin-left:8px;"></span>
+                        </h3>
+                    </div>
+                    <div class="table-container">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Événement</th>
+                                    <th>Auteur</th>
+                                    <th>Question</th>
+                                    <th>Date</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="questionsList"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB MESSAGES -->
+            <div id="tab-messages" class="tab-content">
+                <div class="btn-group">
+                    <button id="markReadBtn" class="btn btn-sm">✓ Marquer comme lu</button>
+                    <button id="markUnreadBtn" class="btn btn-sm">📖 Marquer comme non lu</button>
+                    <button id="markImportantBtn" class="btn btn-sm">⭐ Important</button>
+                    <button id="deleteMessagesBtn" class="btn btn-sm btn-danger">🗑️ Supprimer</button>
+                </div>
+                <div class="table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="selectAllMessages"></th>
+                                <th>Statut</th>
+                                <th>Nom</th>
+                                <th>Email</th>
+                                <th>Sujet</th>
+                                <th>Message</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="messagesList"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB BUDGET & COUNCIL -->
+            <div id="tab-budget" class="tab-content">
+                <div class="btn-group">
+                    <button id="showExpenseModalBtn" class="btn btn-primary">+ Ajouter dépense</button>
+                    <button id="showAddDonationModalBtn" class="btn btn-primary">+ Ajouter don</button>
+                    <button id="exportBudgetWordBtn" style="display:none;" class="btn btn-secondary">📄 Exporter Word</button>
+                    <button onclick="exportBudgetAccounting()" class="btn btn-secondary">📊 Export comptable</button>
+                </div>
+                <!-- Résumé budget -->
+                <div class="dashboard-grid" style="margin-bottom:1.5rem;">
+                    <div class="stat-card success"><div class="stat-label">Total recettes</div><div class="stat-value" id="totalRecettes">0€</div></div>
+                    <div class="stat-card danger"><div class="stat-label">Total dépenses</div><div class="stat-value" id="totalExpensesAmount">0€</div></div>
+                    <div class="stat-card"><div class="stat-label">Solde</div><div class="stat-value" id="totalBalance">0€</div></div>
+                </div>
+                <!-- Table dépenses -->
+                <h3 style="color:var(--primary-color); margin-bottom:0.75rem;">💸 Dépenses</h3>
+                <div class="table-container" style="margin-bottom:1.5rem;">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th>Responsable</th>
+                                <th>Montant</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="expensesList"></tbody>
+                    </table>
+                </div>
+                <!-- Table dons -->
+                <h3 style="color:var(--primary-color); margin-bottom:0.75rem;">💝 Dons</h3>
+                <div class="table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Donateur</th>
+                                <th>Email</th>
+                                <th>Montant</th>
+                                <th>Message</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="donationsList"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-council" class="tab-content">
+                <div class="btn-group">
+                    <button id="showCouncilModalBtn" class="btn btn-primary">+ Ajouter membre</button>
+                </div>
+                <div class="table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Nom &amp; Prénom</th>
+                                <th>Poste</th>
+                                <th>Email</th>
+                                <th>Téléphone</th>
+                                <th>Depuis le</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="councilList"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB GESTION DES ACCÈS (super admin uniquement) -->
+            <div id="tab-access" class="tab-content">
+                <div style="background:#fff3cd; border:1px solid #ffc107; border-radius:10px; padding:0.8rem 1rem; margin-bottom:1.5rem; color:#856404; font-size:0.9rem;">
+                    🔐 Cette page est réservée à l'administrateur principal. Les modifications prennent effet immédiatement.
+                </div>
+
+
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="showAddAccessModal()">+ Créer un accès</button>
+                </div>
+                <div class="table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Nom</th>
+                                <th>Email</th>
+                                <th>Rôle</th>
+                                <th>Statut</th>
+                                <th>Créé le</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="accessList"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    // ============ COMPTES ADMINS PAR DÉFAUT (seed uniquement) ============
+    const ADMIN_USERS_DEFAULT = [
+        { email: 'admin@amismontety.fr',      password: 'Montety@2026!', name: 'Administrateur',        role: 'super_admin' },
+        { email: 'baudoinpezeril@yahoo.fr',   password: 'Montety@2026!', name: 'Baudoin Pezeril',       role: 'super_admin' },
+        { email: 'baudoin@amismontety.fr',    password: 'pass2026',      name: 'Baudoin Pezeril',       role: 'admin' },
+        { email: 'pierre@amismontety.fr',     password: 'pass2026',      name: 'Pierre Edouard Caussin', role: 'admin' },
+        { email: 'fabrice@amismontety.fr',    password: 'pass2026',      name: 'Fabrice Autrique',      role: 'admin' }
+    ];
+
+    // ============ TABLE DES ACCÈS (montety_admin_accounts) ============
+    function getAdminAccounts() {
+        try {
+            const raw = localStorage.getItem('montety_admin_accounts');
+            if (raw) return JSON.parse(raw);
+        } catch(e) {}
+        // Premier démarrage : seeder depuis les défauts
+        const seed = ADMIN_USERS_DEFAULT.map(u => ({
+            email: u.email, name: u.name, password: u.password,
+            role: u.role, active: true, createdAt: new Date().toISOString()
+        }));
+        localStorage.setItem('montety_admin_accounts', JSON.stringify(seed));
+        return seed;
+    }
+    function saveAdminAccounts(accounts) {
+        localStorage.setItem('montety_admin_accounts', JSON.stringify(accounts));
+    }
+
+    // Synchronise les comptes par défaut depuis le code source (passwords + nouveaux comptes)
+    function syncDefaultAccounts() {
+        const stored = JSON.parse(localStorage.getItem('montety_admin_accounts') || '[]');
+        let changed = false;
+        ADMIN_USERS_DEFAULT.forEach(def => {
+            const existing = stored.find(a => a.email === def.email);
+            if (existing) {
+                // Mettre à jour le mot de passe et le rôle si différent
+                if (existing.password !== def.password || existing.role !== def.role) {
+                    existing.password = def.password;
+                    existing.role = def.role;
+                    changed = true;
+                }
+            } else {
+                // Ajouter le compte s'il n'existe pas encore
+                stored.push({ email: def.email, name: def.name, password: def.password,
+                    role: def.role, active: true, createdAt: new Date().toISOString() });
+                changed = true;
+            }
+        });
+        if (changed) localStorage.setItem('montety_admin_accounts', JSON.stringify(stored));
+    }
+    syncDefaultAccounts();
+
+    function getAdminAccount(email) {
+        return getAdminAccounts().find(a => a.email === email) || null;
+    }
+    function getAdminPassword(email) {
+        const acc = getAdminAccount(email);
+        return acc ? acc.password : null;
+    }
+    function saveStoredPassword(email, newPassword) {
+        const accounts = getAdminAccounts();
+        const acc = accounts.find(a => a.email === email);
+        if (acc) { acc.password = newPassword; saveAdminAccounts(accounts); }
+    }
+    function generatePassword() {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+        let pwd = '';
+        for (let i = 0; i < 10; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+        return pwd;
+    }
+    function isSuperAdmin() {
+        try {
+            const email = JSON.parse(sessionStorage.getItem('adminLogged') || '{}').email;
+            return email === 'admin@amismontety.fr' || email === 'baudoinpezeril@yahoo.fr';
+        }
+        catch(e) { return false; }
+    }
+    // Crée ou met à jour un compte admin (utilisé lors nomination CA)
+    function upsertAdminAccount(email, name, password, role) {
+        const accounts = getAdminAccounts();
+        const existing = accounts.find(a => a.email === email);
+        if (existing) {
+            if (password) existing.password = password;
+            existing.active = true;
+        } else {
+            accounts.push({ email, name, password: password || generatePassword(),
+                role: role || 'admin', active: true, createdAt: new Date().toISOString() });
+        }
+        saveAdminAccounts(accounts);
+        return accounts.find(a => a.email === email).password;
+    }
+
+    // ============ AUTHENTIFICATION ============
+    function handleLogin(e) {
+        e.preventDefault();
+        const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+        const password = document.getElementById('loginPassword').value;
+        const errorDiv = document.getElementById('loginError');
+
+        const accounts = getAdminAccounts();
+        const account = accounts.find(a => a.email === email && a.active !== false);
+
+        if (account && account.password === password) {
+            sessionStorage.setItem('adminLogged', JSON.stringify({
+                email: account.email, name: account.name,
+                role: account.role, loginTime: new Date().toISOString()
+            }));
+            document.getElementById('loginModal').classList.add('hidden');
+            document.getElementById('adminContainer').style.display = 'block';
+            const uiEl = document.getElementById('userInfo');
+            if (uiEl) uiEl.textContent = account.name;
+            errorDiv.style.display = 'none';
+            applyRoleVisibility();
+            if (typeof initAll === 'function') initAll();
+        } else {
+            errorDiv.style.display = 'block';
+            errorDiv.textContent = 'Identifiants incorrects. Vérifiez votre adresse et votre mot de passe.';
+            document.getElementById('loginPassword').value = '';
+        }
+    }
+
+    // Affiche/masque le tab "Accès" selon le rôle
+    function applyRoleVisibility() {
+        const accessTab = document.getElementById('sidebarAccessItem');
+        if (accessTab) accessTab.style.display = isSuperAdmin() ? 'flex' : 'none';
+    }
+
+    function logout() {
+        sessionStorage.removeItem('adminLogged');
+        document.getElementById('adminContainer').style.display = 'none';
+        document.getElementById('loginModal').classList.remove('hidden');
+        document.getElementById('loginForm').reset();
+        location.reload();
+    }
+
+    function checkAdminAuth() {
+        const loggedIn = sessionStorage.getItem('adminLogged');
+        if (!loggedIn) {
+            document.getElementById('adminContainer').style.display = 'none';
+            document.getElementById('loginModal').classList.remove('hidden');
+            return false;
+        }
+        document.getElementById('adminContainer').style.display = 'block';
+        document.getElementById('loginModal').classList.add('hidden');
+        try {
+            const user = JSON.parse(loggedIn);
+            const el = document.getElementById('userInfo');
+            if (el) el.textContent = user.name;
+        } catch(e) {}
+        applyRoleVisibility();
+        if (typeof initAll === 'function') initAll();
+        return true;
+    }
+
+    // ============ MOT DE PASSE OUBLIÉ ============
+    function showForgotPasswordModal(e) {
+        e.preventDefault();
+        document.getElementById('forgotEmail').value = '';
+        document.getElementById('forgotMsg').style.display = 'none';
+        document.getElementById('forgotModal').classList.add('active');
+    }
+    function closeForgotModal() { document.getElementById('forgotModal').classList.remove('active'); }
+
+    function sendForgotPassword(e) {
+        e.preventDefault();
+        const email = document.getElementById('forgotEmail').value.trim().toLowerCase();
+        const msgEl = document.getElementById('forgotMsg');
+
+        const account = getAdminAccount(email);
+        if (account && account.active !== false) {
+            const newPwd = generatePassword();
+            saveStoredPassword(email, newPwd);
+            const user = account;
+            const subject = encodeURIComponent('Réinitialisation de votre mot de passe — Les Amis de Montety');
+            const body = encodeURIComponent(
+                `Bonjour ${user.name},\n\n` +
+                `Voici votre nouveau mot de passe pour accéder à l'administration du site :\n\n` +
+                `    ${newPwd}\n\n` +
+                `Connectez-vous sur : ${window.location.href}\n\n` +
+                `Nous vous recommandons de le changer dès votre prochaine connexion (bouton ⚙️ Paramètres).\n\n` +
+                `Cordialement,\nLes Amis de Montety`
+            );
+            window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
+        }
+        // Même message qu'il existe ou non (sécurité)
+        msgEl.style.display = 'block';
+        msgEl.innerHTML = '✅ Si cette adresse est reconnue, un email a été préparé dans votre client mail. Vérifiez votre messagerie.';
+        setTimeout(() => closeForgotModal(), 3500);
+    }
+
+    // ============ PARAMÈTRES — CHANGEMENT DE MOT DE PASSE ============
+    function showSettingsModal() {
+        try {
+            const session = JSON.parse(sessionStorage.getItem('adminLogged') || '{}');
+
+            const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+            const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+            const setDisp = (id, val) => { const el = document.getElementById(id); if (el) el.style.display = val; };
+
+            setTxt('settingsUserName',  session.name || session.email || '—');
+            setTxt('settingsUserEmail', session.email || '');
+
+            // Role admin
+            const roleMap = { super_admin: 'Super Admin', admin: 'Admin', simple: 'Simple' };
+            const rolePrefix = { super_admin: 'Etoile ', admin: '', simple: '' };
+            setTxt('settingsAdminRole', (roleMap[session.role] || session.role || 'Utilisateur'));
+
+            // Role bureau
+            const bureauRoles = {
+                president: 'President', vice_president: 'Vice-President',
+                tresorier: 'Tresorier', secretaire: 'Secretaire',
+                commissaire: 'Commissaire aux comptes', membre: 'Membre CA'
+            };
+            try {
+                const councilData = JSON.parse(localStorage.getItem('montety_council_members') || '[]');
+                const bm = councilData.find(m => m.email && m.email.toLowerCase() === (session.email || '').toLowerCase());
+                if (bm && bm.role) {
+                    setTxt('settingsBureauRole', bureauRoles[bm.role] || bm.role);
+                    setDisp('settingsBureauRole', '');
+                } else {
+                    setDisp('settingsBureauRole', 'none');
+                }
+            } catch(e2) { setDisp('settingsBureauRole', 'none'); }
+
+            setVal('pwdCurrent', '');
+            setVal('pwdNew', '');
+            setVal('pwdConfirm', '');
+            setDisp('pwdMsg', 'none');
+
+            document.getElementById('settingsModal').classList.add('active');
+        } catch(err) {
+            console.error('showSettingsModal error:', err);
+            // Ouverture minimale même en cas d'erreur
+            const m = document.getElementById('settingsModal');
+            if (m) m.classList.add('active');
+        }
+    }
+    function closeSettingsModal() { document.getElementById('settingsModal').classList.remove('active'); }
+
+    function changePassword(e) {
+        e.preventDefault();
+        const session = JSON.parse(sessionStorage.getItem('adminLogged') || '{}');
+        const email = session.email;
+        const current = document.getElementById('pwdCurrent').value;
+        const newPwd  = document.getElementById('pwdNew').value;
+        const confirm = document.getElementById('pwdConfirm').value;
+        const msgEl   = document.getElementById('pwdMsg');
+
+        const actualPwd = getAdminPassword(email);
+        if (current !== actualPwd) {
+            msgEl.style.display = 'block';
+            msgEl.style.color = '#dc3545';
+            msgEl.textContent = 'Mot de passe actuel incorrect.';
+            return;
+        }
+        if (newPwd.length < 6) {
+            msgEl.style.display = 'block';
+            msgEl.style.color = '#dc3545';
+            msgEl.textContent = 'Le nouveau mot de passe doit contenir au moins 6 caractères.';
+            return;
+        }
+        if (newPwd !== confirm) {
+            msgEl.style.display = 'block';
+            msgEl.style.color = '#dc3545';
+            msgEl.textContent = 'Les deux nouveaux mots de passe ne correspondent pas.';
+            return;
+        }
+        saveStoredPassword(email, newPwd);
+        msgEl.style.display = 'block';
+        msgEl.style.color = '#28a745';
+        msgEl.textContent = '✅ Mot de passe modifié avec succès !';
+        document.getElementById('pwdCurrent').value = '';
+        document.getElementById('pwdNew').value = '';
+        document.getElementById('pwdConfirm').value = '';
+        setTimeout(() => closeSettingsModal(), 1800);
+    }
+
+    function toggleLoginPwd() {
+        const input = document.getElementById('loginPassword');
+        const btn   = document.getElementById('togglePwdBtn');
+        if (input.type === 'password') {
+            input.type = 'text';
+            btn.textContent = '🙈';
+            btn.title = 'Masquer le mot de passe';
+        } else {
+            input.type = 'password';
+            btn.textContent = '👁️';
+            btn.title = 'Afficher le mot de passe';
+        }
+    }
+
+    function logoutFromSettings() {
+        closeSettingsModal();
+        logout();
+    }
+
+    // ============ CHANGEMENT MDP ADMIN PRINCIPAL (onglet Accès) ============
+    function changeAdminPassword(e) {
+        e.preventDefault();
+        const ADMIN_EMAIL = 'admin@amismontety.fr';
+        const current = document.getElementById('adminPwdCurrent').value;
+        const newPwd  = document.getElementById('adminPwdNew').value;
+        const confirm = document.getElementById('adminPwdConfirm').value;
+        const msgEl   = document.getElementById('adminPwdMsg');
+
+        const actualPwd = getAdminPassword(ADMIN_EMAIL);
+        if (!current || current !== actualPwd) {
+            msgEl.style.display = 'block';
+            msgEl.style.background = '#fdecea';
+            msgEl.style.color = '#c62828';
+            msgEl.textContent = '❌ Mot de passe actuel incorrect.';
+            return;
+        }
+        if (newPwd.length < 6) {
+            msgEl.style.display = 'block';
+            msgEl.style.background = '#fdecea';
+            msgEl.style.color = '#c62828';
+            msgEl.textContent = '❌ Le nouveau mot de passe doit contenir au moins 6 caractères.';
+            return;
+        }
+        if (newPwd !== confirm) {
+            msgEl.style.display = 'block';
+            msgEl.style.background = '#fdecea';
+            msgEl.style.color = '#c62828';
+            msgEl.textContent = '❌ Les deux nouveaux mots de passe ne correspondent pas.';
+            return;
+        }
+        saveStoredPassword(ADMIN_EMAIL, newPwd);
+        msgEl.style.display = 'block';
+        msgEl.style.background = '#e8f5e9';
+        msgEl.style.color = '#2e7d32';
+        msgEl.textContent = '✅ Mot de passe administrateur modifié avec succès !';
+        document.getElementById('adminPwdCurrent').value = '';
+        document.getElementById('adminPwdNew').value = '';
+        document.getElementById('adminPwdConfirm').value = '';
+        setTimeout(() => { msgEl.style.display = 'none'; }, 3500);
+    }
+
+    // ============ RESET / CRÉATION MDP BUREAU ============
+    // Crée le compte si inexistant, génère un nouveau MDP et prépare le mail
+    function sendNewPasswordToMember(email, name) {
+        const newPwd = generatePassword();
+        upsertAdminAccount(email, name, newPwd, 'admin');
+        const subject = encodeURIComponent('Accès administration — Les Amis de Montety');
+        const body = encodeURIComponent(
+            `Bonjour ${name},\n\n` +
+            `Voici vos identifiants pour accéder à l'espace d'administration du site :\n\n` +
+            `    Email        : ${email}\n` +
+            `    Mot de passe : ${newPwd}\n\n` +
+            `Connectez-vous sur : ${window.location.href}\n\n` +
+            `Pensez à changer votre mot de passe via le bouton ⚙️ Paramètres après connexion.\n\n` +
+            `Cordialement,\nLes Amis de Montety`
+        );
+        window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
+        if (typeof renderAccess === 'function') renderAccess();
+        alert(`✅ Accès créé/mis à jour pour ${name}. Email préparé dans votre client mail.`);
+    }
+
+    // ============ INITIALISATION PAGE ============
+    document.addEventListener('DOMContentLoaded', function() {
+        checkAdminAuth();
+        document.getElementById('settingsBtn')?.addEventListener('click', showSettingsModal);
+        document.getElementById('loginForm')?.addEventListener('submit', handleLogin);
+    });
+</script>
+
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/admin.css">
+
+<!-- ==================== MODALE MOT DE PASSE OUBLIÉ ==================== -->
+<div id="forgotModal" class="modal" style="z-index:4000;">
+    <div class="modal-content" style="max-width:420px;">
+        <div class="modal-header">
+            <span>🔑 Mot de passe oublié</span>
+            <button class="modal-close" onclick="closeForgotModal()">×</button>
+        </div>
+        <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:1rem;">
+            Saisissez votre adresse email. Si elle est reconnue, un email avec un nouveau mot de passe sera préparé dans votre client mail.
+        </p>
+        <form onsubmit="sendForgotPassword(event)">
+            <div class="form-group">
+                <label>Adresse email</label>
+                <input type="email" id="forgotEmail" required placeholder="votre@email.fr">
+            </div>
+            <div id="forgotMsg" style="display:none; padding:0.6rem 0.8rem; background:#d4edda; border-radius:8px; color:#155724; font-size:0.88rem; margin-bottom:0.8rem;"></div>
+            <div class="btn-group">
+                <button type="submit" class="btn btn-primary">📨 Envoyer</button>
+                <button type="button" class="btn btn-secondary" onclick="closeForgotModal()">Annuler</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ==================== MODALE PARAMÈTRES ==================== -->
+<div id="settingsModal" class="modal">
+    <div class="modal-content" style="max-width:440px;">
+        <div class="modal-header">
+            <span>⚙️ Paramètres du compte</span>
+            <button class="modal-close" onclick="closeSettingsModal()">×</button>
+        </div>
+
+        <!-- Carte profil -->
+        <div style="background:linear-gradient(135deg,#24435d 0%,#1a3348 100%); border-radius:14px; padding:1.2rem 1.4rem; margin-bottom:1.5rem; color:white; display:flex; align-items:center; gap:1rem;">
+            <div style="width:52px;height:52px;border-radius:50%;background:rgba(244,185,66,.25);display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0;">👤</div>
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:800; font-size:1.05rem;" id="settingsUserName"></div>
+                <div style="font-size:0.82rem; opacity:.8; margin-top:2px;" id="settingsUserEmail"></div>
+                <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.6rem;">
+                    <span id="settingsAdminRole" style="font-size:0.75rem; background:rgba(244,185,66,.3); color:#f4b942; border-radius:20px; padding:2px 10px; font-weight:700;"></span>
+                    <span id="settingsBureauRole" style="font-size:0.75rem; background:rgba(255,255,255,.15); color:white; border-radius:20px; padding:2px 10px; font-weight:600; display:none;"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Changer le mot de passe -->
+        <h3 style="color:var(--primary-color); font-size:0.95rem; margin-bottom:0.9rem; border-bottom:2px solid var(--accent-color); padding-bottom:0.4rem;">🔐 Changer mon mot de passe</h3>
+        <form onsubmit="changePassword(event)">
+            <div class="form-group" style="position:relative;">
+                <label>Mot de passe actuel</label>
+                <input type="password" id="pwdCurrent" required placeholder="Votre mot de passe actuel" autocomplete="current-password">
+            </div>
+            <div class="form-group">
+                <label>Nouveau mot de passe <span style="font-size:0.78rem; color:var(--text-muted);">(6 caractères min.)</span></label>
+                <input type="password" id="pwdNew" required placeholder="Nouveau mot de passe" autocomplete="new-password">
+            </div>
+            <div class="form-group">
+                <label>Confirmer le nouveau mot de passe</label>
+                <input type="password" id="pwdConfirm" required placeholder="Retapez le nouveau mot de passe" autocomplete="new-password">
+            </div>
+            <div id="pwdMsg" style="display:none; padding:0.5rem 0.8rem; border-radius:8px; font-size:0.88rem; margin-bottom:0.8rem;"></div>
+            <div class="btn-group">
+                <button type="submit" class="btn btn-primary">💾 Modifier le mot de passe</button>
+                <button type="button" class="btn btn-secondary" onclick="closeSettingsModal()">Fermer</button>
+            </div>
+        </form>
+
+        <!-- Déconnexion -->
+        <div style="margin-top:1.5rem; border-top:1px solid var(--border-color); padding-top:1rem;">
+            <button onclick="logoutFromSettings()" class="btn btn-danger" style="width:100%;">🚪 Se déconnecter</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== MODALES ==================== -->
+
+<!-- MODALE ADHÉRENT -->
+<div id="memberModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span>👤 Ajouter un adhérent</span>
+            <button class="modal-close" onclick="closeMemberModal()">×</button>
+        </div>
+        <form onsubmit="addMember(event)">
+            <div class="form-group"><label>Nom *</label><input type="text" id="memberLastName" required placeholder="Nom de famille"></div>
+            <div class="form-group"><label>Prénom *</label><input type="text" id="memberFirstName" required placeholder="Prénom"></div>
+            <div class="form-group"><label>Email *</label><input type="email" id="memberEmail" required placeholder="email@exemple.fr"></div>
+            <div class="form-group"><label>Téléphone</label><input type="tel" id="memberPhone" placeholder="06 00 00 00 00"></div>
+            <div class="form-group"><label>Date de naissance</label><input type="date" id="memberBirthDate"></div>
+            <div class="form-group"><label>Date d'adhésion *</label><input type="date" id="memberJoinDate" required></div>
+            <div class="form-group"><label>Type d'adhésion</label><select id="memberType">
+                <option value="MA">MA – Membre Adhérent (20€)</option>
+                <option value="MB">MB – Membre Bienfaiteur (&gt; 20€)</option>
+                <option value="MH">MH – Membre d'Honneur</option>
+            </select></div>
+            <div class="form-group"><label>Cotisation payée</label><select id="memberPaid"><option value="false">Non</option><option value="true">Oui</option></select></div>
+            <div class="form-group"><label>Montant payé (€)</label><input type="number" id="memberPaymentAmount" min="0" step="0.01" placeholder="Ex : 20" oninput="if(parseFloat(this.value)>0){document.getElementById('memberPaid').value='true';}"></div>
+            <div class="form-group"><label>Méthode de paiement</label><select id="memberPaymentMethod">
+                <option value="">— Non renseigné —</option>
+                <option value="cheque">Chèque</option>
+                <option value="liquide">Liquide</option>
+                <option value="virement">Virement</option>
+                <option value="cb">CB</option>
+            </select></div>
+            <div class="btn-group">
+                <button type="submit" class="btn btn-primary">Ajouter</button>
+                <button type="button" class="btn btn-secondary" onclick="closeMemberModal()">Annuler</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODALE ÉVÉNEMENT -->
+<div id="eventModal" class="modal">
+    <div class="modal-content" style="max-width:600px;">
+        <div class="modal-header">
+            <span id="eventModalTitle">Ajouter événement</span>
+            <button class="modal-close" onclick="closeEventModal()">×</button>
+        </div>
+
+        <!-- Bandeau statut (visible si validé) -->
+        <div id="eventValidatedBanner" style="display:none; background:#d4edda; border:1px solid #c3e6cb; border-radius:8px; padding:0.75rem 1rem; margin-bottom:1rem; color:#155724; font-weight:600;">
+            ✅ Événement validé — lecture seule. Pour modifier, supprimez et recréez-en un nouveau.
+        </div>
+
+        <!-- Remplissage automatique (templates) -->
+        <div style="display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap;">
+            <span style="font-size:0.82rem; color:var(--text-muted); align-self:center;">⚡ Modèle rapide :</span>
+            <button type="button" class="btn btn-secondary" style="font-size:0.8rem; padding:0.3rem 0.75rem;" onclick="fillEventTemplate('ag')">🏛️ Assemblée générale</button>
+            <button type="button" class="btn btn-secondary" style="font-size:0.8rem; padding:0.3rem 0.75rem;" onclick="fillEventTemplate('apero')">🥂 Apéro</button>
+        </div>
+
+        <form onsubmit="saveEvent(event)" id="eventForm">
+            <input type="hidden" id="eventId">
+            <input type="hidden" id="eventStatus" value="pending">
+
+            <div class="form-group"><label>Titre *</label><input type="text" id="eventTitle" required placeholder="Titre de l'événement"></div>
+
+            <!-- Type d'événement -->
+            <div class="form-group">
+                <label>Type d'événement</label>
+                <select id="eventType">
+                    <option value="public">🌐 Public (visible sur le site)</option>
+                    <option value="conseil_administration">🔒 Conseil d'administration (interne)</option>
+                </select>
+            </div>
+
+            <div class="form-group"><label>Début *</label><input type="datetime-local" id="eventStart" required></div>
+            <div class="form-group"><label>Fin *</label><input type="datetime-local" id="eventEnd" required></div>
+
+            <!-- Lieu avec suggestions -->
+            <div class="form-group" style="position:relative;">
+                <label>Lieu</label>
+                <input type="text" id="eventLocation" placeholder="Commencez à taper une adresse…" autocomplete="off"
+                    oninput="onLocInput(this.value)"
+                    onkeydown="onLocKey(event)"
+                    onfocus="if(this.value.length>2) showLocSuggestions(_locLast)">
+                <div id="locDropdown" style="
+                    display:none; position:absolute; top:100%; left:0; right:0; z-index:1200;
+                    background:white; border:2px solid var(--accent-color); border-top:none;
+                    border-radius:0 0 10px 10px; box-shadow:0 8px 24px rgba(0,0,0,.15);
+                    max-height:220px; overflow-y:auto;">
+                </div>
+            </div>
+
+            <div class="form-group"><label>Description publique</label><textarea id="eventDescription" rows="2" placeholder="Description visible par les visiteurs..."></textarea></div>
+
+            <!-- Visioconférence -->
+            <div class="form-group">
+                <label>🎥 Lien visioconférence</label>
+                <input type="url" id="eventVisioLink" placeholder="https://meet.google.com/... ou https://zoom.us/j/...">
+            </div>
+            <div class="form-group" id="eventVisioCodeGroup" style="display:none;">
+                <label>🔑 Code / Mot de passe de la visio</label>
+                <input type="text" id="eventVisioCode" placeholder="Code d'accès (optionnel)">
+            </div>
+
+            <!-- Sélecteur de couleur ergonomique -->
+            <div class="form-group">
+                <label>Couleur de l'événement</label>
+                <div class="color-swatches" id="colorSwatches">
+                    <div class="color-swatch" data-color="#f4b942" style="background:#f4b942;" title="Or (défaut)" onclick="selectColor('#f4b942')"></div>
+                    <div class="color-swatch" data-color="#24435d" style="background:#24435d;" title="Marine" onclick="selectColor('#24435d')"></div>
+                    <div class="color-swatch" data-color="#28a745" style="background:#28a745;" title="Vert" onclick="selectColor('#28a745')"></div>
+                    <div class="color-swatch" data-color="#dc3545" style="background:#dc3545;" title="Rouge" onclick="selectColor('#dc3545')"></div>
+                    <div class="color-swatch" data-color="#17a2b8" style="background:#17a2b8;" title="Bleu ciel" onclick="selectColor('#17a2b8')"></div>
+                    <div class="color-swatch" data-color="#6f42c1" style="background:#6f42c1;" title="Violet" onclick="selectColor('#6f42c1')"></div>
+                    <div class="color-swatch" data-color="#fd7e14" style="background:#fd7e14;" title="Orange" onclick="selectColor('#fd7e14')"></div>
+                    <div class="color-swatch color-swatch-custom" title="Couleur personnalisée" onclick="document.getElementById('colorPickerNative').click()">🎨</div>
+                </div>
+                <input type="color" id="colorPickerNative" style="visibility:hidden; width:0; height:0; position:absolute;" oninput="selectColor(this.value)">
+                <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.5rem;">
+                    <div id="colorPreview" style="width:28px;height:28px;border-radius:6px;border:2px solid #ddd;background:#f4b942;"></div>
+                    <span id="colorLabel" style="font-size:0.85rem; color:var(--text-muted);">Or (défaut)</span>
+                </div>
+                <input type="hidden" id="eventColor" value="#f4b942">
+            </div>
+
+            <!-- Commentaire visa (admin uniquement) -->
+            <div class="form-group visa-comment-group">
+                <label style="display:flex; align-items:center; gap:0.4rem;">
+                    🔐 Commentaire visa <span style="font-size:0.75rem; background:#fff3cd; color:#856404; padding:2px 6px; border-radius:4px; font-weight:500;">Admin uniquement</span>
+                </label>
+                <textarea id="eventVisaComment" rows="2" placeholder="Notes internes pour la validation (non visible sur le site)..."></textarea>
+            </div>
+
+            <!-- Pièce jointe / Image -->
+            <div class="form-group">
+                <label>📎 Image ou pièce jointe <span style="font-weight:400;font-size:0.8rem;color:#718096;">(optionnel — max 2 Mo)</span></label>
+                <div class="file-upload-zone" id="fileUploadZone" onclick="document.getElementById('eventAttachmentInput').click()">
+                    <div class="file-upload-icon">📎</div>
+                    <div class="file-upload-text">Cliquez pour ajouter une image ou un fichier</div>
+                    <div class="file-upload-hint">JPG, PNG, GIF, WebP, PDF, DOCX</div>
+                </div>
+                <input type="file" id="eventAttachmentInput" accept="image/*,.pdf,.doc,.docx" style="display:none" onchange="handleEventFile(this)">
+                <div id="eventAttachmentPreview" style="display:none; margin-top:0.6rem;"></div>
+            </div>
+
+            <div class="btn-group" id="eventModalBtns">
+                <button type="submit" id="saveEventBtn" class="btn btn-primary">💾 Enregistrer</button>
+                <button type="button" id="validateEventBtn" class="btn btn-success" onclick="validateCurrentEvent()" style="display:none; background:#28a745; color:white;">✅ Valider l'événement</button>
+                <button type="button" id="deleteEventBtn" class="btn btn-danger" onclick="deleteCurrentEvent()" style="display:none;">🗑️ Supprimer</button>
+                <button type="button" class="btn btn-secondary" onclick="closeEventModal()">Annuler</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODALE MEMBRE DU BUREAU -->
+<div id="councilModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span>👑 Ajouter un membre au bureau</span>
+            <button class="modal-close" onclick="closeCouncilModal()">×</button>
+        </div>
+        <form onsubmit="addCouncilMember(event)">
+            <div class="form-group"><label>Nom *</label><input type="text" id="councilLastName" required></div>
+            <div class="form-group"><label>Prénom *</label><input type="text" id="councilFirstName" required></div>
+            <div class="form-group"><label>Email *</label><input type="email" id="councilEmail" required></div>
+            <div class="form-group"><label>Téléphone</label><input type="tel" id="councilPhone" placeholder="06 00 00 00 00"></div>
+            <div class="form-group"><label>Rôle</label>
+                <select id="councilRole">
+                    <option value="membre">Membre</option>
+                    <option value="president">Président</option>
+                    <option value="tresorier">Trésorier</option>
+                    <option value="commissaire">Commissaire aux comptes</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Date de désignation</label>
+                <input type="date" id="councilSince">
+                <small style="color:var(--text-muted);">Laissez vide pour utiliser la date d'aujourd'hui</small>
+            </div>
+            <div class="btn-group">
+                <button type="submit" class="btn btn-primary">Ajouter</button>
+                <button type="button" class="btn btn-secondary" onclick="closeCouncilModal()">Annuler</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODALE CRÉER UN ACCÈS (admin uniquement) -->
+<div id="addAccessModal" class="modal">
+    <div class="modal-content" style="max-width:420px;">
+        <div class="modal-header">
+            <span>🔐 Créer un accès administrateur</span>
+            <button class="modal-close" onclick="closeAddAccessModal()">×</button>
+        </div>
+        <form onsubmit="createAccessAccount(event)">
+            <div class="form-group"><label>Nom complet *</label><input type="text" id="accessName" required placeholder="Prénom Nom"></div>
+            <div class="form-group"><label>Email *</label><input type="email" id="accessEmail" required placeholder="email@amismontety.fr"></div>
+            <div class="form-group"><label>Rôle</label>
+                <select id="accessRole">
+                    <option value="admin">👤 Admin — accès complet sauf Gestion des accès</option>
+                    <option value="simple">🔵 Simple — accès restreint (consultation uniquement)</option>
+                </select>
+            </div>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.8rem;">Un mot de passe aléatoire sera généré et l'email préparé automatiquement.</p>
+            <div class="btn-group">
+                <button type="submit" class="btn btn-primary">✅ Créer l'accès</button>
+                <button type="button" class="btn btn-secondary" onclick="closeAddAccessModal()">Annuler</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODALE DÉPENSE -->
+<div id="expenseModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span>💸 Ajouter une dépense</span>
+            <button class="modal-close" onclick="closeExpenseModal()">×</button>
+        </div>
+        <form onsubmit="addExpense(event)">
+            <div class="form-group"><label>Description *</label><input type="text" id="expenseDesc" required placeholder="Description de la dépense"></div>
+            <div class="form-group"><label>Montant (€) *</label><input type="number" id="expenseAmount" step="0.01" min="0" required placeholder="0.00"></div>
+            <div class="form-group"><label>Date *</label><input type="date" id="expenseDate" required></div>
+            <div class="form-group"><label>Responsable</label><input type="text" id="expenseResponsible" placeholder="Nom du responsable"></div>
+            <div class="btn-group">
+                <button type="submit" class="btn btn-primary">Ajouter</button>
+                <button type="button" class="btn btn-secondary" onclick="closeExpenseModal()">Annuler</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODALE DON -->
+<div id="addDonationModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span>💝 Enregistrer un don</span>
+            <button class="modal-close" onclick="closeAddDonationModal()">×</button>
+        </div>
+        <form onsubmit="addDonationAdmin(event)">
+            <div class="form-group"><label>Nom du donateur *</label><input type="text" id="adminDonationName" required></div>
+            <div class="form-group"><label>Email</label><input type="email" id="adminDonationEmail" placeholder="email@exemple.fr"></div>
+            <div class="form-group"><label>Montant (€) *</label><input type="number" id="adminDonationAmount" step="0.01" min="0" required></div>
+            <div class="form-group"><label>Message</label><textarea id="adminDonationMessage" rows="2" placeholder="Message du donateur..."></textarea></div>
+            <div class="btn-group">
+                <button type="submit" class="btn btn-primary">Enregistrer</button>
+                <button type="button" class="btn btn-secondary" onclick="closeAddDonationModal()">Annuler</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODALE MAILING -->
+<div id="mailingListModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span>📧 Envoi groupé</span>
+            <button class="modal-close" onclick="closeMailingListModal()">×</button>
+        </div>
+        <div id="mailingRecipients" style="margin-bottom:1rem; padding:0.75rem; background:#f5f7fa; border-radius:8px; font-size:0.9rem;"></div>
+        <div class="form-group"><label>Message *</label><textarea id="mailingBody" rows="6" placeholder="Votre message..."></textarea></div>
+        <div class="btn-group">
+            <button onclick="sendMailingList()" class="btn btn-primary">📨 Envoyer</button>
+            <button onclick="closeMailingListModal()" class="btn btn-secondary">Annuler</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODALE VOIR MESSAGE -->
+<div id="viewMessageModal" class="modal">
+    <div class="modal-content" style="max-width:600px;">
+        <div class="modal-header">
+            <span id="viewMessageTitle"></span>
+            <button class="modal-close" onclick="closeViewMessageModal()">×</button>
+        </div>
+        <div id="viewMessageContent" style="line-height:1.7;"></div>
+        <div class="btn-group" style="margin-top:1.5rem;">
+            <button onclick="replyFromView()" class="btn btn-primary">✉️ Répondre</button>
+            <button onclick="closeViewMessageModal()" class="btn btn-secondary">Fermer</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODALE RÉPONDRE MESSAGE -->
+<div id="replyMessageModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span>✉️ Répondre au message</span>
+            <button class="modal-close" onclick="closeReplyMessageModal()">×</button>
+        </div>
+        <form onsubmit="sendReply(event)">
+            <input type="hidden" id="replyMessageId">
+            <div class="form-group"><label>À</label><input type="email" id="replyTo" readonly style="background:#f5f7fa;"></div>
+            <div class="form-group"><label>Objet</label><input type="text" id="replySubject"></div>
+            <div class="form-group"><label>Message</label><textarea id="replyBody" rows="7"></textarea></div>
+            <div class="btn-group">
+                <button type="submit" class="btn btn-primary">Envoyer</button>
+                <button type="button" class="btn btn-secondary" onclick="closeReplyMessageModal()">Annuler</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<script>
+/* ===== PHOTON AUTOCOMPLETE — LIEU ÉVÉNEMENT ===== */
+let _locLast = [], _locDebounce = null, _locActiveIdx = -1;
+
+function onLocInput(val) {
+    clearTimeout(_locDebounce);
+    if (val.length < 3) { hideLocDropdown(); return; }
+    _locDebounce = setTimeout(() => fetchLocAddresses(val), 280);
+}
+
+function fetchLocAddresses(query) {
+    const dd = document.getElementById('locDropdown');
+    if (!dd) return;
+    dd.style.display = 'block';
+    dd.innerHTML = '<div class="loc-loading">Recherche…</div>';
+    const url = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(query) + '&limit=6&lang=fr&bbox=-5.14,41.33,9.56,51.12';
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            _locLast = (data.features || []).map(f => {
+                const p = f.properties || {};
+                const parts = [p.housenumber, p.street || p.name, p.postcode, p.city || p.county || p.state].filter(Boolean);
+                return parts.join(', ');
+            }).filter(Boolean);
+            showLocSuggestions(_locLast);
+        })
+        .catch(() => hideLocDropdown());
+}
+
+function showLocSuggestions(list) {
+    const dd = document.getElementById('locDropdown');
+    if (!dd) return;
+    _locActiveIdx = -1;
+    if (!list || list.length === 0) { hideLocDropdown(); return; }
+    dd.style.display = 'block';
+    dd.innerHTML = list.map((addr, i) =>
+        '<div class="loc-suggestion" onmousedown="selectLoc(' + i + ')">' + addr + '</div>'
+    ).join('');
+}
+
+function hideLocDropdown() {
+    const dd = document.getElementById('locDropdown');
+    if (dd) { dd.style.display = 'none'; dd.innerHTML = ''; }
+    _locActiveIdx = -1;
+}
+
+function selectLoc(idx) {
+    const inp = document.getElementById('eventLocation');
+    if (inp && _locLast[idx] !== undefined) {
+        inp.value = _locLast[idx];
+    }
+    hideLocDropdown();
+}
+
+function setLocActiveIdx(idx) {
+    const dd = document.getElementById('locDropdown');
+    if (!dd) return;
+    const items = dd.querySelectorAll('.loc-suggestion');
+    items.forEach((el, i) => el.classList.toggle('active', i === idx));
+    _locActiveIdx = idx;
+}
+
+function onLocKey(e) {
+    const dd = document.getElementById('locDropdown');
+    if (!dd || dd.style.display === 'none') return;
+    const items = dd.querySelectorAll('.loc-suggestion');
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setLocActiveIdx(Math.min(_locActiveIdx + 1, items.length - 1));
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setLocActiveIdx(Math.max(_locActiveIdx - 1, 0));
+    } else if (e.key === 'Enter') {
+        if (_locActiveIdx >= 0) { e.preventDefault(); selectLoc(_locActiveIdx); }
+    } else if (e.key === 'Escape') {
+        hideLocDropdown();
+    }
+}
+
+document.addEventListener('click', function(e) {
+    const dd = document.getElementById('locDropdown');
+    const inp = document.getElementById('eventLocation');
+    if (dd && inp && !dd.contains(e.target) && e.target !== inp) {
+        hideLocDropdown();
+    }
+});
+</script>
+<script src="js/admin.js"></script>
+</body>
+</html>
+                   

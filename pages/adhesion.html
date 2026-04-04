@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adhérer - Les Amis de Montety</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        .adhesion-container {
+            max-width: 600px;
+            margin: 4rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        .adhesion-container h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 1rem;
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+        .header-back-link {
+            color: rgba(255,255,255,0.85);
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 600;
+            border: 1.5px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
+            padding: 0.35rem 0.9rem;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        .header-back-link:hover { background: rgba(255,255,255,0.12); color: white; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <div class="logo-section" onclick="location.href='../index.html'" style="cursor:pointer;">
+                <div class="logo"></div>
+            </div>
+            <div style="display:flex; align-items:center; gap:1rem;">
+                <span style="color:rgba(255,255,255,0.7); font-size:0.9rem; font-weight:500;">✨ Adhésion</span>
+                <a href="../index.html" class="header-back-link">← Retour à l'accueil</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="adhesion-container">
+        <h1>✨ Adhérer aux Amis de Montety</h1>
+        <form onsubmit="submitMembership(event)">
+            <div class="form-group"><label>Nom *</label><input type="text" id="memLastName" required></div>
+            <div class="form-group"><label>Prénom *</label><input type="text" id="memFirstName" required></div>
+            <div class="form-group"><label>Date de naissance *</label><input type="date" id="memBirthDate" required></div>
+            <div class="form-group"><label>Email *</label><input type="email" id="memEmail" required></div>
+            <div class="form-group"><label>Téléphone (facultatif)</label><input type="tel" id="memPhone"></div>
+            <div class="form-group"><label>Adresse</label><textarea id="memAddress" rows="2"></textarea></div>
+            <div class="button-group">
+                <button type="submit" class="btn-primary">📝 Envoyer ma demande d'adhésion</button>
+                <button type="button" class="btn-secondary" onclick="location.href='../index.html'">Annuler</button>
+            </div>
+        </form>
+        <p style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-muted); text-align: center;">
+            La cotisation annuelle est de 20€. Nous vous recontacterons pour finaliser votre adhésion.
+        </p>
+        <div style="text-align:center; margin-top:1.2rem;">
+            <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:0.75rem;">Ou payez directement en ligne en toute sécurité :</p>
+            <a href="../paiement.html" style="display:inline-block; padding:0.8rem 2rem; background:linear-gradient(135deg,#f4b942,#e0a52e); color:#24435d; font-weight:800; border-radius:12px; text-decoration:none; font-size:1rem; box-shadow:0 4px 14px rgba(244,185,66,0.35);">
+                💳 Payer ma cotisation en ligne
+            </a>
+        </div>
+    </div>
+
+    <footer>
+        <div class="footer-bottom"><p>&copy; 2026 Les Amis de Montety - Association de loi 1901 à Toulon.</p></div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script>
+        function submitMembership(e) {
+            e.preventDefault();
+            const membership = {
+                id: Date.now(),
+                lastName: document.getElementById('memLastName').value,
+                firstName: document.getElementById('memFirstName').value,
+                birthDate: document.getElementById('memBirthDate').value,
+                email: document.getElementById('memEmail').value,
+                phone: document.getElementById('memPhone').value,
+                address: document.getElementById('memAddress').value,
+                requestDate: new Date().toISOString(),
+                status: 'pending'
+            };
+            const memberships = JSON.parse(localStorage.getItem('montety_memberships') || '[]');
+            memberships.push(membership);
+            localStorage.setItem('montety_memberships', JSON.stringify(memberships));
+            alert(`Merci ${membership.firstName} ${membership.lastName} pour votre demande d'adhésion !\nNous vous contacterons sous 48h.`);
+            window.location.href = '../index.html';
+        }
+    </script>
+</body>
+</html>

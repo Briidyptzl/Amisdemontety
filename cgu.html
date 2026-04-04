@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mentions légales & CGU — Les Amis de Montety</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        * { box-sizing: border-box; }
+
+        .header-back-link {
+            color: rgba(255,255,255,0.85);
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 600;
+            border: 1.5px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
+            padding: 0.35rem 0.9rem;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        .header-back-link:hover { background: rgba(255,255,255,0.12); color: white; }
+
+        body {
+            background: #f5f7fa;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #2d3748;
+            margin: 0;
+        }
+
+        /* ── NAVIGATION INTERNE ── */
+        .cgu-nav {
+            background: white;
+            border-bottom: 2px solid #e8edf2;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        .cgu-nav-inner {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 0.6rem 2rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .cgu-nav a {
+            color: #24435d;
+            text-decoration: none;
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            border: 1.5px solid #dde3ea;
+            transition: all 0.18s;
+            white-space: nowrap;
+        }
+        .cgu-nav a:hover { background: #24435d; color: white; border-color: #24435d; }
+
+        /* ── CONTENU ── */
+        .cgu-wrapper {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 3rem 2rem 5rem;
+        }
+
+        .cgu-hero {
+            background: linear-gradient(135deg, #24435d 0%, #1a3348 100%);
+            color: white;
+            border-radius: 18px;
+            padding: 2.5rem 2rem;
+            margin-bottom: 2.5rem;
+            text-align: center;
+        }
+        .cgu-hero h1 { font-size: 1.6rem; margin-bottom: 0.5rem; }
+        .cgu-hero p  { font-size: 0.9rem; color: rgba(255,255,255,0.75); margin: 0; }
+
+        .cgu-section {
+            background: white;
+            border-radius: 14px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+            padding: 2rem 2.2rem;
+            margin-bottom: 1.5rem;
+            scroll-margin-top: 80px;
+        }
+
+        .cgu-section h2 {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #24435d;
+            margin-bottom: 1.2rem;
+            padding-bottom: 0.6rem;
+            border-bottom: 3px solid #f4b942;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .cgu-section h3 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #24435d;
+            margin: 1.2rem 0 0.5rem;
+        }
+
+        .cgu-section p,
+        .cgu-section li {
+            font-size: 0.88rem;
+            line-height: 1.75;
+            color: #4a5568;
+        }
+
+        .cgu-section ul {
+            padding-left: 1.4rem;
+            margin: 0.5rem 0;
+        }
+
+        .cgu-section ul li { margin-bottom: 0.3rem; }
+
+        .cgu-section .highlight-box {
+            background: #fff8e1;
+            border-left: 4px solid #f4b942;
+            border-radius: 0 8px 8px 0;
+            padding: 0.8rem 1.1rem;
+            margin: 1rem 0;
+            font-size: 0.86rem;
+            color: #555;
+        }
+
+        .cgu-section .info-row {
+            display: grid;
+            grid-template-columns: 180px 1fr;
+            gap: 0.3rem 1rem;
+            font-size: 0.88rem;
+        }
+        .cgu-section .info-row dt {
+            font-weight: 700;
+            color: #24435d;
+            padding: 0.3rem 0;
+        }
+        .cgu-section .info-row dd {
+            color: #4a5568;
+            padding: 0.3rem 0;
+            margin: 0;
+            border-bottom: 1px solid #f0f4f8;
+        }
+
+        .update-date {
+            text-align: right;
+            font-size: 0.78rem;
+            color: #a0aec0;
+            margin-top: 2rem;
+            font-style: italic;
+        }
+
+        @media (max-width: 640px) {
+            .cgu-wrapper { padding: 1.5rem 1rem 3rem; }
+            .cgu-section { padding: 1.4rem 1.2rem; }
+            .cgu-section .info-row { grid-template-columns: 1fr; }
+            .cgu-section .info-row dt { border-bottom: none; padding-bottom: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+    <div class="header-container">
+        <div class="logo-section" onclick="location.href='index.html'" style="cursor:pointer;">
+            <div class="logo"></div>
+        </div>
+        <div style="display:flex; align-items:center; gap:1rem;">
+            <span style="color:rgba(255,255,255,0.7); font-size:0.9rem; font-weight:500;">⚖️ Mentions légales</span>
+            <a href="index.html" class="header-back-link">← Retour à l'accueil</a>
+        </div>
+    </div>
+</header>
+
+<!-- NAVIGATION INTERNE -->
+<nav class="cgu-nav">
+    <div class="cgu-nav-inner">
+        <a href="#mentions">📋 Mentions légales</a>
+        <a href="#cgu">📄 Conditions d'utilisation</a>
+        <a href="#confidentialite">🔒 Données personnelles</a>
+        <a href="#cookies">🍪 Cookies</a>
+        <a href="#responsabilite">⚠️ Responsabilité</a>
+        <a href="#contact-legal">✉️ Contact</a>
+    </div>
+</nav>
+
+<div class="cgu-wrapper">
+
+    <!-- HERO -->
+    <div class="cgu-hero">
+        <h1>⚖️ Mentions légales &amp; Conditions générales</h1>
+        <p>Association loi 1901 — Les Amis de Montety</p>
+    </div>
+
+    <!-- ═══ 1. MENTIONS LÉGALES ═══ -->
+    <section class="cgu-section" id="mentions">
+        <h2>📋 Mentions légales</h2>
+
+        <h3>Éditeur du site</h3>
+        <dl class="info-row">
+            <dt>Nom</dt>
+            <dd>Les Amis de Montety</dd>
+            <dt>Forme juridique</dt>
+            <dd>Association régie par la loi du 1er juillet 1901</dd>
+            <dt>Siège social</dt>
+            <dd>Montety, France</dd>
+            <dt>Email de contact</dt>
+            <dd><a href="mailto:contact@amismontety.fr" style="color:#24435d;">contact@amismontety.fr</a></dd>
+            <dt>Directeur de publication</dt>
+            <dd>Le Président de l'association</dd>
+        </dl>
+
+        <h3>Hébergement</h3>
+        <p>Ce site est hébergé localement ou via un prestataire tiers. Les coordonnées de l'hébergeur sont disponibles sur simple demande auprès de l'association.</p>
+
+        <h3>Propriété intellectuelle</h3>
+        <p>L'ensemble du contenu de ce site (textes, images, logos, graphismes) est la propriété exclusive des Amis de Montety ou de leurs auteurs respectifs. Toute reproduction, représentation, modification ou exploitation, totale ou partielle, est interdite sans l'accord préalable et écrit de l'association.</p>
+    </section>
+
+    <!-- ═══ 2. CONDITIONS GÉNÉRALES D'UTILISATION ═══ -->
+    <section class="cgu-section" id="cgu">
+        <h2>📄 Conditions générales d'utilisation</h2>
+
+        <h3>Objet</h3>
+        <p>Les présentes conditions générales d'utilisation (CGU) régissent l'accès et l'utilisation du site internet de l'association Les Amis de Montety (ci-après « le Site »). Toute visite ou utilisation du Site vaut acceptation pleine et entière des présentes CGU.</p>
+
+        <h3>Accès au site</h3>
+        <p>Le Site est accessible gratuitement à tout utilisateur disposant d'un accès à internet. L'association se réserve le droit de suspendre ou de modifier l'accès au Site sans préavis, notamment pour des raisons de maintenance ou d'évolution technique.</p>
+
+        <h3>Utilisation du site</h3>
+        <p>L'utilisateur s'engage à utiliser le Site de manière licite et dans le respect des tiers. Sont notamment interdits :</p>
+        <ul>
+            <li>La publication de contenus illicites, diffamatoires, injurieux ou portant atteinte aux droits d'autrui</li>
+            <li>Toute tentative d'intrusion ou d'altération du Site ou de ses données</li>
+            <li>L'utilisation des formulaires à des fins de prospection commerciale non autorisée</li>
+            <li>La collecte automatisée de données (scraping)</li>
+        </ul>
+
+        <h3>Espace « Coup de pouce »</h3>
+        <p>La fonctionnalité « Coup de pouce » permet à toute personne de publier librement une annonce de demande ou d'offre d'aide. L'association ne saurait être tenue responsable du contenu des annonces publiées par des tiers. Toute annonce contraire aux présentes CGU ou aux lois en vigueur pourra être supprimée sans préavis.</p>
+
+        <div class="highlight-box">
+            Les annonces sont automatiquement supprimées après <strong>30 jours</strong>. L'association se réserve le droit de retirer toute annonce inappropriée à sa seule discrétion.
+        </div>
+
+        <h3>Adhésion et dons</h3>
+        <p>Les formulaires d'adhésion et de don sont proposés à titre informatif et facilitent la mise en relation avec l'association. Les informations transmises sont utilisées exclusivement dans le cadre de la gestion associative et ne sont pas cédées à des tiers.</p>
+
+        <h3>Modification des CGU</h3>
+        <p>L'association se réserve le droit de modifier les présentes CGU à tout moment. Les utilisateurs sont invités à les consulter régulièrement. Les modifications prennent effet dès leur publication sur le Site.</p>
+    </section>
+
+    <!-- ═══ 3. DONNÉES PERSONNELLES ═══ -->
+    <section class="cgu-section" id="confidentialite">
+        <h2>🔒 Protection des données personnelles (RGPD)</h2>
+
+        <h3>Responsable du traitement</h3>
+        <p>Le responsable du traitement des données personnelles est l'association <strong>Les Amis de Montety</strong>, représentée par son Président.</p>
+
+        <h3>Données collectées</h3>
+        <p>Dans le cadre de ses activités, l'association peut être amenée à collecter les données suivantes :</p>
+        <ul>
+            <li><strong>Adhésion :</strong> nom, prénom, adresse postale, adresse email, numéro de téléphone, type d'adhésion, montant et méthode de paiement</li>
+            <li><strong>Dons :</strong> nom, prénom, montant du don, méthode de paiement</li>
+            <li><strong>Coup de pouce :</strong> nom, email ou téléphone, contenu de l'annonce, adresse éventuelle</li>
+            <li><strong>Navigation :</strong> données techniques à des fins de bon fonctionnement (stockage local du navigateur, sans transmission à des serveurs tiers)</li>
+        </ul>
+
+        <h3>Finalités du traitement</h3>
+        <p>Les données collectées sont utilisées pour :</p>
+        <ul>
+            <li>Gérer les adhésions et les dons à l'association</li>
+            <li>Faciliter la mise en relation entre les membres et le public via les services du Site</li>
+            <li>Assurer le bon fonctionnement et la sécurité du Site</li>
+            <li>Adresser des informations sur les activités de l'association (avec consentement)</li>
+        </ul>
+
+        <h3>Base légale</h3>
+        <p>Les traitements de données reposent sur les bases légales suivantes : l'exécution d'un contrat (adhésion), le consentement de la personne concernée, ou l'intérêt légitime de l'association.</p>
+
+        <h3>Conservation des données</h3>
+        <p>Les données personnelles sont conservées pendant la durée nécessaire à la finalité pour laquelle elles ont été collectées, et au maximum pendant <strong>3 ans</strong> à compter du dernier contact avec l'association, sauf obligation légale contraire.</p>
+
+        <h3>Vos droits</h3>
+        <p>Conformément au Règlement Général sur la Protection des Données (RGPD) et à la loi Informatique et Libertés, vous disposez des droits suivants :</p>
+        <ul>
+            <li><strong>Droit d'accès</strong> : obtenir une copie de vos données personnelles</li>
+            <li><strong>Droit de rectification</strong> : corriger des données inexactes ou incomplètes</li>
+            <li><strong>Droit à l'effacement</strong> : demander la suppression de vos données</li>
+            <li><strong>Droit d'opposition</strong> : vous opposer à certains traitements</li>
+            <li><strong>Droit à la portabilité</strong> : recevoir vos données dans un format structuré</li>
+            <li><strong>Droit à la limitation</strong> : restreindre l'utilisation de vos données</li>
+        </ul>
+        <p>Pour exercer ces droits, contactez-nous à : <a href="mailto:contact@amismontety.fr" style="color:#24435d;">contact@amismontety.fr</a>. Vous disposez également du droit d'introduire une réclamation auprès de la <strong>CNIL</strong> (<a href="https://www.cnil.fr" target="_blank" style="color:#24435d;">www.cnil.fr</a>).</p>
+
+        <h3>Sécurité</h3>
+        <p>L'association met en œuvre les mesures techniques appropriées pour protéger vos données contre tout accès non autorisé, perte ou altération. Les données sont stockées localement dans votre navigateur (localStorage) et ne transitent pas via des serveurs tiers, sauf fonctionnalités spécifiques indiquées.</p>
+    </section>
+
+    <!-- ═══ 4. COOKIES ═══ -->
+    <section class="cgu-section" id="cookies">
+        <h2>🍪 Cookies et stockage local</h2>
+
+        <p>Le Site utilise le stockage local du navigateur (<em>localStorage / sessionStorage</em>) pour le bon fonctionnement de ses fonctionnalités, notamment :</p>
+        <ul>
+            <li>La mémorisation des données associatives (adhérents, événements, annonces) côté client</li>
+            <li>La gestion des sessions administrateurs</li>
+        </ul>
+
+        <div class="highlight-box">
+            Ces données restent exclusivement dans votre navigateur et ne sont transmises à aucun serveur. Vous pouvez les effacer à tout moment via les paramètres de votre navigateur.
+        </div>
+
+        <p>Le Site n'utilise <strong>pas de cookies de traçage publicitaire</strong> et ne recourt à aucun outil d'analyse comportementale (type Google Analytics) sans votre consentement explicite.</p>
+    </section>
+
+    <!-- ═══ 5. RESPONSABILITÉ ═══ -->
+    <section class="cgu-section" id="responsabilite">
+        <h2>⚠️ Limitation de responsabilité</h2>
+
+        <h3>Exactitude des informations</h3>
+        <p>L'association s'efforce de maintenir les informations publiées sur le Site exactes et à jour. Toutefois, elle ne saurait garantir l'exhaustivité ou l'absence d'erreurs des informations présentes et décline toute responsabilité pour les éventuelles inexactitudes.</p>
+
+        <h3>Liens externes</h3>
+        <p>Le Site peut contenir des liens vers des sites tiers. Ces liens sont fournis à titre informatif uniquement. L'association ne contrôle pas le contenu de ces sites et décline toute responsabilité quant à leur contenu ou leur fonctionnement.</p>
+
+        <h3>Disponibilité du site</h3>
+        <p>L'association ne garantit pas la disponibilité permanente du Site et se réserve le droit de l'interrompre temporairement pour maintenance, mise à jour ou toute autre raison, sans préavis ni indemnisation.</p>
+
+        <h3>Contenu utilisateur</h3>
+        <p>L'association ne saurait être tenue responsable des contenus publiés par les utilisateurs (notamment les annonces « Coup de pouce »). Tout contenu contraire à la loi ou aux présentes CGU peut être supprimé à tout moment.</p>
+    </section>
+
+    <!-- ═══ 6. CONTACT LÉGAL ═══ -->
+    <section class="cgu-section" id="contact-legal">
+        <h2>✉️ Contact</h2>
+        <p>Pour toute question relative aux présentes mentions légales, conditions générales d'utilisation ou à la protection de vos données personnelles, vous pouvez nous contacter :</p>
+        <dl class="info-row">
+            <dt>Par email</dt>
+            <dd><a href="mailto:contact@amismontety.fr" style="color:#24435d;">contact@amismontety.fr</a></dd>
+            <dt>Par courrier</dt>
+            <dd>Les Amis de Montety — Siège social, Montety, France</dd>
+        </dl>
+        <p style="margin-top:1rem;">Nous nous engageons à répondre à toute demande dans un délai de <strong>30 jours</strong>.</p>
+    </section>
+
+    <p class="update-date">Dernière mise à jour : <span id="updateDate"></span></p>
+
+</div>
+
+<script>
+    // Date de mise à jour automatique
+    const d = new Date();
+    const opts = { day: 'numeric', month: 'long', year: 'numeric' };
+    const el = document.getElementById('updateDate');
+    if (el) el.textContent = d.toLocaleDateString('fr-FR', opts);
+
+    // Navigation douce
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+        a.addEventListener('click', function(e) {
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                e.preventDefault();
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+</script>
+</body>
+</html>

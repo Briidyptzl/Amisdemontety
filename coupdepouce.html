@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coup de pouce — Les Amis de Montety</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        * { box-sizing: border-box; }
+
+        /* ── HEADER RETOUR ── */
+        .header-back-link {
+            color: rgba(255,255,255,0.85);
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 600;
+            border: 1.5px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
+            padding: 0.35rem 0.9rem;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        .header-back-link:hover { background: rgba(255,255,255,0.12); color: white; }
+
+        /* ── LAYOUT SPLIT ── */
+        body { background: #f5f7fa; margin: 0; font-family: 'Segoe UI', Arial, sans-serif; }
+
+        .split-layout {
+            display: grid;
+            grid-template-columns: 420px 1fr;
+            gap: 0;
+            height: calc(100vh - 72px);
+        }
+
+        /* ── PANNEAU GAUCHE : FORMULAIRE ── */
+        .panel-left {
+            background: white;
+            border-right: 2px solid #e8edf2;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 1.4rem 1.4rem;
+            box-sizing: border-box;
+        }
+
+        .panel-left .intro-banner {
+            background: linear-gradient(135deg, #fff8e1, #fffde7);
+            border: 2px solid #f4b942;
+            border-radius: 14px;
+            padding: 1rem 1.2rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            gap: 0.8rem;
+            align-items: flex-start;
+        }
+        .panel-left .intro-banner .icon { font-size: 1.8rem; flex-shrink: 0; }
+        .panel-left .intro-banner h2 { font-size: 0.95rem; color: #24435d; margin-bottom: 0.3rem; font-weight: 800; }
+        .panel-left .intro-banner p  { font-size: 0.82rem; color: #555; line-height: 1.5; }
+
+        .panel-title {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: #24435d;
+            margin-bottom: 1.2rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 3px solid #f4b942;
+        }
+
+        .form-group { margin-bottom: 0.9rem; }
+        .form-group label {
+            display: block;
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: #4a5568;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.3rem;
+        }
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            padding: 0.6rem 0.85rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-family: inherit;
+            background: #fafbfc;
+            transition: border-color 0.2s;
+        }
+        .form-group input[type="datetime-local"] {
+            padding: 0.5rem 0.6rem;
+            font-size: 0.82rem;
+        }
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus { outline: none; border-color: #f4b942; background: white; }
+        .form-group textarea { resize: vertical; min-height: 90px; }
+
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+        .form-row .form-group { min-width: 0; }
+
+        .btn-submit {
+            width: 100%;
+            background: linear-gradient(135deg, #f4b942, #e8a820);
+            color: #24435d;
+            font-weight: 800;
+            font-size: 0.95rem;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            margin-top: 0.4rem;
+            box-shadow: 0 4px 14px rgba(244,185,66,0.35);
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(244,185,66,0.45); }
+
+        .form-success {
+            display: none;
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 2px solid #a5d6a7;
+            border-radius: 10px;
+            padding: 0.8rem 1rem;
+            font-weight: 700;
+            margin-top: 0.8rem;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+
+        /* ── PANNEAU DROIT : ANNONCES ── */
+        .panel-right {
+            background: #f5f7fa;
+            overflow-y: auto;
+            padding: 1.5rem 1.8rem;
+        }
+
+        .annonces-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            position: sticky;
+            top: 0;
+            background: #f5f7fa;
+            padding-bottom: 0.75rem;
+            z-index: 10;
+        }
+        .annonces-header h2 { font-size: 1rem; font-weight: 800; color: #24435d; }
+
+        .filter-bar { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
+
+        .search-input {
+            padding: 0.35rem 0.8rem;
+            border: 1.5px solid #d0d8e4;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            outline: none;
+            width: 160px;
+            background: white;
+        }
+        .search-input:focus { border-color: #f4b942; }
+
+        .filter-btn {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            border: 1.5px solid #d0d8e4;
+            background: white;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            color: #4a5568;
+            transition: all 0.18s;
+        }
+        .filter-btn.active, .filter-btn:hover { background: #24435d; color: white; border-color: #24435d; }
+
+        /* ── CARDS ANNONCES ── */
+        .annonce-card {
+            background: white;
+            border-radius: 14px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+            padding: 1.2rem 1.4rem;
+            margin-bottom: 1rem;
+            border-left: 5px solid #f4b942;
+            transition: box-shadow 0.2s, border-color 0.3s, background 0.3s;
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        .annonce-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+        .annonce-card.cat-transport { border-color: #1a73e8; }
+        .annonce-card.cat-service   { border-color: #28a745; }
+        .annonce-card.cat-materiel  { border-color: #fd7e14; }
+        .annonce-card.cat-autre     { border-color: #6c757d; }
+
+        /* ── CARD AVEC RÉPONSE (verte) ── */
+        .annonce-card.responded {
+            border-left-color: #28a745 !important;
+            background: linear-gradient(135deg, #f0fdf4, #ffffff);
+        }
+
+        .annonce-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.8rem; margin-bottom: 0.5rem; }
+        .annonce-title { font-size: 0.98rem; font-weight: 800; color: #24435d; }
+
+        .badge {
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 2px 9px;
+            border-radius: 20px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .badge-cdp       { background: #fff3cd; color: #856404; }
+        .badge-transport { background: #e8f0fe; color: #1a73e8; }
+        .badge-service   { background: #e8f5e9; color: #2e7d32; }
+        .badge-materiel  { background: #fff3e0; color: #e65100; }
+        .badge-autre     { background: #f1f3f5; color: #495057; }
+        .badge-responded { background: #d4edda; color: #155724; }
+
+        .annonce-desc { font-size: 0.88rem; color: #4a5568; line-height: 1.6; margin-bottom: 0.7rem; }
+
+        .annonce-meta { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.78rem; color: #718096; align-items: center; }
+        .annonce-meta span { display: flex; align-items: center; gap: 0.3rem; }
+
+        .member-crown {
+            background: linear-gradient(135deg, #f4b942, #e8a820);
+            color: #24435d;
+            font-size: 0.7rem;
+            font-weight: 800;
+            padding: 1px 7px;
+            border-radius: 20px;
+            margin-left: 0.3rem;
+            white-space: nowrap;
+        }
+
+        /* Bandeau réponse */
+        .reply-banner {
+            background: #d4edda;
+            border: 1px solid #a5d6a7;
+            border-radius: 8px;
+            padding: 0.5rem 0.9rem;
+            font-size: 0.82rem;
+            color: #155724;
+            font-weight: 700;
+            margin: 0.5rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .reply-banner.admin-view {
+            background: #e8f5e9;
+            border-color: #81c784;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .reply-admin-detail {
+            font-size: 0.78rem;
+            color: #2e7d32;
+            font-weight: 600;
+            margin-top: 0.2rem;
+        }
+
+        /* Formulaire de réponse inline */
+        .reply-form {
+            display: none;
+            background: #f8fffe;
+            border: 2px dashed #a5d6a7;
+            border-radius: 10px;
+            padding: 0.9rem 1rem;
+            margin-top: 0.6rem;
+        }
+        .reply-form.open { display: block; }
+        .reply-form-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #2e7d32;
+            margin-bottom: 0.6rem;
+        }
+        .reply-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem; }
+        .reply-form input {
+            width: 100%;
+            padding: 0.45rem 0.75rem;
+            border: 1.5px solid #c3e6cb;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-family: inherit;
+            background: white;
+        }
+        .reply-form input:focus { outline: none; border-color: #28a745; }
+        .reply-form-actions { display: flex; gap: 0.5rem; margin-top: 0.4rem; }
+        .btn-reply-submit {
+            padding: 0.4rem 1rem;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-reply-submit:hover { background: #218838; }
+        .btn-reply-cancel {
+            padding: 0.4rem 0.8rem;
+            background: #f1f3f5;
+            color: #555;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .annonce-actions { display: flex; gap: 0.5rem; margin-top: 0.8rem; flex-wrap: wrap; align-items: center; }
+        .btn-contact {
+            display: inline-block;
+            padding: 0.3rem 0.85rem;
+            background: #24435d;
+            color: white;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .btn-contact:hover { background: #1a3348; }
+
+        .btn-reply-open {
+            padding: 0.3rem 0.85rem;
+            background: linear-gradient(135deg, #28a745, #20913c);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.15s;
+        }
+        .btn-reply-open:hover { transform: translateY(-1px); }
+
+        .btn-delete {
+            padding: 0.3rem 0.7rem;
+            background: #fdecea;
+            color: #c62828;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-left: auto;
+        }
+        .btn-delete:hover { background: #ffcdd2; }
+
+        /* Badge admin connecté */
+        .admin-badge {
+            display: none;
+            background: rgba(255,255,255,0.15);
+            color: white;
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            border: 1.5px solid rgba(255,255,255,0.3);
+        }
+
+        .empty-state { text-align: center; padding: 3rem 1rem; color: #a0aec0; }
+        .empty-state .icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
+
+        /* ── Autocomplétion adresse ── */
+        .addr-suggestion {
+            padding: 0.6rem 0.9rem;
+            cursor: pointer;
+            font-size: 0.88rem;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            transition: background 0.12s;
+        }
+        .addr-suggestion:last-child { border-bottom: none; }
+        .addr-suggestion:hover, .addr-suggestion.active { background: #fff8e1; }
+        .addr-suggestion .pin { flex-shrink: 0; color: #f4b942; margin-top: 1px; }
+        .addr-suggestion .addr-main { font-weight: 600; color: #24435d; }
+        .addr-suggestion .addr-sub  { font-size: 0.78rem; color: #718096; margin-top: 1px; }
+        .addr-loading {
+            padding: 0.75rem 0.9rem;
+            font-size: 0.85rem;
+            color: #718096;
+            font-style: italic;
+        }
+
+        .annonces-count {
+            font-size: 0.8rem;
+            color: #718096;
+            font-style: italic;
+        }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 800px) {
+            .split-layout {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            .panel-left { padding: 1.2rem; }
+            .panel-right { padding: 1rem; }
+            .annonces-header { position: static; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- HEADER identique accueil (sans navigation) -->
+<header>
+    <div class="header-container">
+        <div class="logo-section" onclick="location.href='index.html'" style="cursor:pointer;">
+            <div class="logo"></div>
+        </div>
+        <div style="display:flex; align-items:center; gap:1rem;">
+            <span style="color:rgba(255,255,255,0.7); font-size:0.9rem; font-weight:500;">🤝 Coup de pouce</span>
+            <span class="admin-badge" id="adminBadge">🔐 Admin</span>
+            <a href="index.html" class="header-back-link">← Retour à l'accueil</a>
+        </div>
+    </div>
+</header>
+
+<!-- SPLIT LAYOUT -->
+<div class="split-layout">
+
+    <!-- ── GAUCHE : FORMULAIRE ── -->
+    <div class="panel-left">
+        <div class="intro-banner">
+            <div class="icon">💛</div>
+            <div>
+                <h2>Besoin d'un coup de main ? Proposez votre aide !</h2>
+                <p>Cet espace est ouvert à tous. Transport, bricolage, courses, matériel… Ensemble, nous faisons la différence.</p>
+            </div>
+        </div>
+
+        <div class="panel-title">📝 Poster une annonce</div>
+
+        <form id="annonceForm" onsubmit="submitAnnonce(event)">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Prénom et nom *</label>
+                    <input type="text" id="aName" required placeholder="Prénom Nom">
+                </div>
+                <div class="form-group">
+                    <label>Email ou téléphone *</label>
+                    <input type="text" id="aContact" required placeholder="Pour être contacté(e)">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Titre de l'annonce *</label>
+                <input type="text" id="aTitle" required placeholder="Ex : Besoin d'un transport médical">
+            </div>
+            <div class="form-group">
+                <label>Catégorie</label>
+                <select id="aCategory">
+                    <option value="cdp">🤝 Coup de pouce (général)</option>
+                    <option value="transport">🚗 Transport</option>
+                    <option value="service">🔧 Service / Aide pratique</option>
+                    <option value="materiel">📦 Matériel / Prêt d'objet</option>
+                    <option value="autre">💬 Autre</option>
+                </select>
+            </div>
+            <!-- Dates début / fin estimée -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label>📅 Début *</label>
+                    <input type="datetime-local" id="aDateStart" required>
+                </div>
+                <div class="form-group">
+                    <label>⏳ Fin estimée *</label>
+                    <input type="datetime-local" id="aDateEnd" required>
+                </div>
+            </div>
+            <div style="background:#fff8e1;border:1.5px solid #f4b942;border-radius:10px;padding:0.45rem 0.8rem;font-size:0.75rem;color:#856404;margin-bottom:0.9rem;margin-top:-0.5rem;">
+                💡 L'annonce est automatiquement retirée à la date de fin estimée.
+            </div>
+
+            <!-- Adresse avec autocomplétion Maps -->
+            <div class="form-group" style="position:relative;">
+                <label>📍 Adresse / Lieu (optionnel)</label>
+                <input type="text" id="aAddress" placeholder="Commencez à taper une adresse…" autocomplete="off"
+                    oninput="onAddressInput(this.value)"
+                    onkeydown="onAddressKey(event)"
+                    onfocus="if(this.value.length>2) showSuggestions(lastSuggestions)">
+                <div id="addressDropdown" style="
+                    display:none; position:absolute; top:100%; left:0; right:0; z-index:999;
+                    background:white; border:2px solid #f4b942; border-top:none;
+                    border-radius:0 0 12px 12px; box-shadow:0 8px 24px rgba(0,0,0,.12);
+                    max-height:220px; overflow-y:auto;">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Description *</label>
+                <textarea id="aDesc" required placeholder="Décrivez votre besoin ou ce que vous proposez…"></textarea>
+            </div>
+            <button type="submit" class="btn-submit">📤 Publier mon annonce</button>
+            <div class="form-success" id="aSuccess">✅ Annonce publiée ! Elle est maintenant visible par tous.</div>
+        </form>
+    </div>
+
+    <!-- ── DROITE : ANNONCES ── -->
+    <div class="panel-right">
+        <div class="annonces-header">
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+                <h2>📋 Annonces en cours</h2>
+                <span class="annonces-count" id="annoncesCount"></span>
+            </div>
+            <div class="filter-bar">
+                <input type="text" class="search-input" id="searchInput" placeholder="🔍 Rechercher…" oninput="renderAnnonces()">
+                <button class="filter-btn active" onclick="setFilter('',this)">Toutes</button>
+                <button class="filter-btn" onclick="setFilter('transport',this)">🚗</button>
+                <button class="filter-btn" onclick="setFilter('service',this)">🔧</button>
+                <button class="filter-btn" onclick="setFilter('materiel',this)">📦</button>
+                <button class="filter-btn" onclick="setFilter('cdp',this)">🤝</button>
+            </div>
+        </div>
+        <div id="annoncesList"></div>
+    </div>
+
+</div>
+
+<script>
+const STORAGE_KEY  = 'montety_coupdepouce';
+const MEMBERS_KEY  = 'montety_accepted_members';
+let currentFilter  = '';
+
+/* ── ADMIN DETECTION ── */
+function isAdmin() {
+    try {
+        const s = sessionStorage.getItem('adminLogged');
+        if (!s) return false;
+        const data = JSON.parse(s);
+        return !!(data && data.email);
+    } catch(e) { return false; }
+}
+
+/* ── DONNÉES ── */
+function getAnnonces() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { return []; }
+}
+function saveAnnonces(arr) { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }
+
+function getMembers() {
+    try { return JSON.parse(localStorage.getItem(MEMBERS_KEY) || '[]'); } catch(e) { return []; }
+}
+
+/* Vérifie si un contact (email ou tel) correspond à un adhérent */
+function isMember(contact) {
+    if (!contact) return false;
+    const members = getMembers();
+    const c = contact.trim().toLowerCase().replace(/\s/g, '');
+    return members.some(m => {
+        const email = (m.email || '').toLowerCase().trim();
+        const phone = (m.phone || '').replace(/\s/g, '');
+        return email === c || phone === c;
+    });
+}
+
+function setFilter(cat, btn) {
+    currentFilter = cat;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderAnnonces();
+}
+
+const CAT = {
+    cdp:       { label: '🤝 Coup de pouce', badge: 'badge-cdp',      cls: '' },
+    transport: { label: '🚗 Transport',     badge: 'badge-transport', cls: 'cat-transport' },
+    service:   { label: '🔧 Service',        badge: 'badge-service',   cls: 'cat-service' },
+    materiel:  { label: '📦 Matériel',       badge: 'badge-materiel',  cls: 'cat-materiel' },
+    autre:     { label: '💬 Autre',           badge: 'badge-autre',     cls: 'cat-autre' },
+};
+
+function esc(str) {
+    return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── RENDU ANNONCES ── */
+function renderAnnonces() {
+    const container = document.getElementById('annoncesList');
+    let list = getAnnonces();
+    const search = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
+    const admin  = isAdmin(); // pour l'affichage des détails répondeur
+
+    if (currentFilter) list = list.filter(a => a.category === currentFilter);
+    if (search) list = list.filter(a =>
+        (a.title + ' ' + a.desc + ' ' + a.name).toLowerCase().includes(search)
+    );
+    list = [...list].reverse(); // plus récents d'abord
+
+    const countEl = document.getElementById('annoncesCount');
+    if (countEl) countEl.textContent = list.length
+        ? `${list.length} annonce${list.length > 1 ? 's' : ''}`
+        : '';
+
+    if (list.length === 0) {
+        container.innerHTML = `<div class="empty-state">
+            <span class="icon">🤝</span>
+            <p>Aucune annonce pour le moment.<br>Soyez le premier à poster !</p>
+        </div>`;
+        return;
+    }
+
+    container.innerHTML = list.map(a => {
+        const cat  = CAT[a.category] || CAT['autre'];
+        const date = new Date(a.date).toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
+        const isM  = isMember(a.contact);
+        const crownBadge = isM ? `<span class="member-crown">👑 Adhérent</span>` : '';
+        const contactHref = (a.contact||'').includes('@')
+            ? `mailto:${esc(a.contact)}?subject=Réponse : ${esc(a.title)}`
+            : `tel:${(a.contact||'').replace(/\s/g,'')}`;
+        const hasReply  = !!(a.responder && a.responder.name);
+        const respondedClass = hasReply ? ' responded' : '';
+
+        /* Bandeau réponse */
+        let replyBanner = '';
+        if (hasReply) {
+            if (admin) {
+                const rDate = a.responder.date
+                    ? new Date(a.responder.date).toLocaleDateString('fr-FR', { day:'numeric', month:'long' })
+                    : '';
+                replyBanner = `<div class="reply-banner admin-view">
+                    <span>✅ Une personne a proposé son aide</span>
+                    <div class="reply-admin-detail">
+                        👤 ${esc(a.responder.name)}
+                        ${a.responder.phone ? ' — 📞 ' + esc(a.responder.phone) : ''}
+                        ${rDate ? ' — ' + rDate : ''}
+                    </div>
+                </div>`;
+            } else {
+                replyBanner = `<div class="reply-banner">✅ Une personne a proposé son aide !</div>`;
+            }
+        }
+
+        /* Boutons d'action */
+        const replyBtn = !hasReply
+            ? `<button class="btn-reply-open" onclick="toggleReplyForm('${esc(a.id)}')">💬 Proposer mon aide</button>`
+            : '';
+        const deleteBtn = `<button class="btn-delete" onclick="deleteAnnonce('${esc(a.id)}')">🗑️ Supprimer</button>`;
+
+        /* Formulaire de réponse inline */
+        const replyForm = !hasReply ? `
+            <div class="reply-form" id="replyForm_${esc(a.id)}">
+                <div class="reply-form-title">💬 Proposer mon aide pour cette demande</div>
+                <div class="reply-form-row">
+                    <input type="text" id="rName_${esc(a.id)}" placeholder="Votre prénom et nom *" required>
+                    <input type="text" id="rPhone_${esc(a.id)}" placeholder="Votre téléphone *" required>
+                </div>
+                <div class="reply-form-actions">
+                    <button class="btn-reply-submit" onclick="submitReply('${esc(a.id)}')">✅ Confirmer mon aide</button>
+                    <button class="btn-reply-cancel" onclick="toggleReplyForm('${esc(a.id)}')">Annuler</button>
+                </div>
+            </div>` : '';
+
+        return `<div class="annonce-card ${cat.cls}${respondedClass}" id="card_${esc(a.id)}">
+            <div class="annonce-top">
+                <div class="annonce-title">${esc(a.title)}</div>
+                <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0;">
+                    ${hasReply ? '<span class="badge badge-responded">✅ Pris en charge</span>' : ''}
+                    <span class="badge ${cat.badge}">${cat.label}</span>
+                </div>
+            </div>
+            <div class="annonce-desc">${esc(a.desc)}</div>
+            <div class="annonce-meta">
+                <span>👤 <strong>${esc(a.name)}</strong>${crownBadge}</span>
+                <span>📅 ${date}</span>
+                ${a.dateStart ? `<span>🕐 Début : ${fmtDate(a.dateStart)}</span>` : ''}
+                ${a.dateEnd   ? `<span>⏳ Fin : ${fmtDate(a.dateEnd)}</span>` : ''}
+                ${a.address ? `<span>📍 ${esc(a.address)}</span>` : ''}
+            </div>
+            ${replyBanner}
+            ${replyForm}
+            <div class="annonce-actions">
+                <a href="${contactHref}" class="btn-contact">✉️ Contacter</a>
+                ${replyBtn}
+                ${deleteBtn}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+/* ── TOGGLE FORMULAIRE RÉPONSE ── */
+function toggleReplyForm(id) {
+    const form = document.getElementById('replyForm_' + id);
+    if (!form) return;
+    form.classList.toggle('open');
+    if (form.classList.contains('open')) {
+        const inp = document.getElementById('rName_' + id);
+        if (inp) inp.focus();
+    }
+}
+
+/* ── SOUMETTRE UNE RÉPONSE ── */
+function submitReply(id) {
+    const nameInp  = document.getElementById('rName_'  + id);
+    const phoneInp = document.getElementById('rPhone_' + id);
+    const name  = (nameInp?.value || '').trim();
+    const phone = (phoneInp?.value || '').trim();
+    if (!name || !phone) {
+        alert('Merci de renseigner votre nom et votre téléphone.');
+        return;
+    }
+    const arr = getAnnonces();
+    const idx = arr.findIndex(a => a.id === id);
+    if (idx === -1) return;
+    arr[idx].responder = { name, phone, date: new Date().toISOString() };
+    saveAnnonces(arr);
+    renderAnnonces();
+}
+
+/* ── SUPPRIMER UNE ANNONCE ── */
+function deleteAnnonce(id) {
+    if (!confirm('Supprimer cette annonce ?')) return;
+    saveAnnonces(getAnnonces().filter(a => a.id !== id));
+    renderAnnonces();
+}
+
+/* ── FORMATTAGE DATE COURTE ── */
+function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+        + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+/* ── NETTOYAGE AUTO ── */
+function purgeExpiredAnnonces() {
+    const EXPIRY_DAYS = 30;
+    const cutoff = Date.now() - EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+    const now    = Date.now();
+    const arr    = getAnnonces();
+    const kept   = arr.filter(a => {
+        // Suppression si date de fin estimée dépassée
+        if (a.dateEnd && new Date(a.dateEnd).getTime() <= now) return false;
+        // Suppression si annonce de plus de 30 jours
+        if (new Date(a.date).getTime() < cutoff) return false;
+        return true;
+    });
+    if (kept.length < arr.length) {
+        saveAnnonces(kept);
+        return arr.length - kept.length;
+    }
+    return 0;
+}
+
+/* ── AUTOCOMPLÉTION ADRESSE (Photon / OpenStreetMap) ── */
+let lastSuggestions = [];
+let addrDebounce    = null;
+let addrActiveIdx   = -1;
+
+function onAddressInput(val) {
+    clearTimeout(addrDebounce);
+    addrActiveIdx = -1;
+    if (!val || val.trim().length < 3) { hideDropdown(); return; }
+    showLoading();
+    addrDebounce = setTimeout(() => fetchAddresses(val.trim()), 280);
+}
+
+function fetchAddresses(query) {
+    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6&lang=fr&bbox=-5.14,41.33,9.56,51.12`;
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            lastSuggestions = (data.features || []).map(f => {
+                const p = f.properties;
+                const streetLine = [p.housenumber, p.street].filter(Boolean).join(' ') || p.name || '';
+                const cityLine   = [p.postcode, p.city || p.county || p.state].filter(Boolean).join(' ');
+                const full = [p.housenumber, p.street || p.name, p.postcode, p.city || p.county || p.state].filter(Boolean).join(', ');
+                const main = streetLine || cityLine || full;
+                const sub  = cityLine && cityLine !== main ? cityLine : '';
+                return { main, sub, full };
+            }).filter(s => s.full);
+            showSuggestions(lastSuggestions);
+        })
+        .catch(() => hideDropdown());
+}
+
+function showLoading() {
+    const d = document.getElementById('addressDropdown');
+    d.innerHTML = '<div class="addr-loading">🔍 Recherche en cours…</div>';
+    d.style.display = 'block';
+}
+
+function showSuggestions(list) {
+    const d = document.getElementById('addressDropdown');
+    if (!list || list.length === 0) { hideDropdown(); return; }
+    d.innerHTML = list.map((s, i) => `
+        <div class="addr-suggestion" data-idx="${i}"
+             onmousedown="selectAddress(${i})"
+             onmouseover="setActiveIdx(${i})">
+            <span class="pin">📍</span>
+            <div>
+                <div class="addr-main">${esc(s.main)}</div>
+                ${s.sub ? `<div class="addr-sub">${esc(s.sub)}</div>` : ''}
+            </div>
+        </div>`).join('');
+    d.style.display = 'block';
+}
+
+function hideDropdown() {
+    document.getElementById('addressDropdown').style.display = 'none';
+    addrActiveIdx = -1;
+}
+
+function selectAddress(idx) {
+    const s = lastSuggestions[idx];
+    if (!s) return;
+    document.getElementById('aAddress').value = s.full || s.main;
+    hideDropdown();
+}
+
+function setActiveIdx(idx) {
+    addrActiveIdx = idx;
+    document.querySelectorAll('.addr-suggestion').forEach((el, i) => {
+        el.classList.toggle('active', i === idx);
+    });
+}
+
+function onAddressKey(e) {
+    const items = document.querySelectorAll('.addr-suggestion');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        addrActiveIdx = Math.min(addrActiveIdx + 1, items.length - 1);
+        setActiveIdx(addrActiveIdx);
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        addrActiveIdx = Math.max(addrActiveIdx - 1, 0);
+        setActiveIdx(addrActiveIdx);
+    } else if (e.key === 'Enter' && addrActiveIdx >= 0) {
+        e.preventDefault();
+        selectAddress(addrActiveIdx);
+    } else if (e.key === 'Escape') {
+        hideDropdown();
+    }
+}
+
+document.addEventListener('click', e => {
+    if (!e.target.closest('#aAddress') && !e.target.closest('#addressDropdown')) hideDropdown();
+});
+
+/* ── POSTER UNE ANNONCE ── */
+function submitAnnonce(e) {
+    e.preventDefault();
+    const startVal = document.getElementById('aDateStart').value;
+    const endVal   = document.getElementById('aDateEnd').value;
+    // Validation : fin doit être après début
+    if (new Date(endVal) <= new Date(startVal)) {
+        alert('La date de fin estimée doit être postérieure à la date de début.');
+        return;
+    }
+    // Validation : fin doit être dans le futur
+    if (new Date(endVal) <= new Date()) {
+        alert('La date de fin estimée doit être dans le futur.');
+        return;
+    }
+    const annonce = {
+        id:        Date.now().toString(),
+        name:      document.getElementById('aName').value.trim(),
+        contact:   document.getElementById('aContact').value.trim(),
+        title:     document.getElementById('aTitle').value.trim(),
+        category:  document.getElementById('aCategory').value,
+        address:   document.getElementById('aAddress').value.trim(),
+        desc:      document.getElementById('aDesc').value.trim(),
+        date:      new Date().toISOString(),
+        dateStart: startVal ? new Date(startVal).toISOString() : null,
+        dateEnd:   endVal   ? new Date(endVal).toISOString()   : null,
+        responder: null
+    };
+    const arr = getAnnonces();
+    arr.push(annonce);
+    saveAnnonces(arr);
+
+    document.getElementById('annonceForm').reset();
+    hideDropdown();
+    const ok = document.getElementById('aSuccess');
+    ok.style.display = 'block';
+    setTimeout(() => ok.style.display = 'none', 4000);
+
+    renderAnnonces();
+}
+
+/* ── INITIALISATION ── */
+(function init() {
+    // Badge admin
+    if (isAdmin()) {
+        const badge = document.getElementById('adminBadge');
+        if (badge) badge.style.display = 'inline-block';
+    }
+    // Nettoyage auto des annonces expirées (> 30 jours)
+    const purged = purgeExpiredAnnonces();
+    if (purged > 0) {
+        console.info(`[Coup de pouce] ${purged} annonce(s) expirée(s) supprimée(s) automatiquement.`);
+    }
+    renderAnnonces();
+})();
+</script>
+</body>
+</html>

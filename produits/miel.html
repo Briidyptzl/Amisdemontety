@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vente de Miel — Les Amis de Montety</title>
+    <style>
+        :root {
+            --primary: #24435d;
+            --primary-dark: #0f3a54;
+            --accent: #f4b942;
+            --accent-hover: #e0a52e;
+            --border: #dce5ec;
+            --muted: #5a6e7a;
+            --bg: #f4f7fa;
+            --white: #ffffff;
+            --radius: 14px;
+            --shadow: 0 4px 24px rgba(36,67,93,0.10);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--primary); min-height: 100vh; }
+
+        /* ── HEADER identique paiement.html ── */
+        .page-header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 1.2rem 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1.2rem;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+        }
+        .page-header img { height: 48px; }
+        .page-header-title h1 { font-size: 1.3rem; font-weight: 700; }
+        .page-header-title p  { font-size: 0.82rem; opacity: 0.75; margin-top: 2px; }
+        .back-link {
+            margin-left: auto;
+            color: rgba(255,255,255,0.75);
+            text-decoration: none;
+            font-size: 0.88rem;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 0.4rem 0.9rem;
+            border-radius: 20px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .back-link:hover { background: rgba(255,255,255,0.15); color: white; }
+
+        /* ── LAYOUT ── */
+        .container { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+        /* ── CARD identique paiement.html ── */
+        .card {
+            background: var(--white);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 2rem 2.5rem;
+            margin-bottom: 2rem;
+        }
+        .card-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .card-title::after {
+            content: '';
+            flex: 1;
+            height: 2px;
+            background: linear-gradient(to right, var(--accent), transparent);
+            margin-left: 0.75rem;
+        }
+
+        /* ── GRILLE PRODUITS ── */
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1.5rem;
+        }
+        .product-card {
+            background: var(--white);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            border: 1.5px solid var(--border);
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+        }
+        .product-card:hover { transform: translateY(-4px); box-shadow: 0 8px 32px rgba(36,67,93,0.15); }
+        .product-image {
+            width: 100%; height: 150px;
+            background: linear-gradient(135deg, #f4b942 0%, #e0a52e 100%);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 3.2rem;
+        }
+        .product-info { padding: 1.25rem; display: flex; flex-direction: column; flex: 1; }
+        .product-info h3 { font-size: 1rem; font-weight: 700; color: var(--primary); margin-bottom: 0.35rem; }
+        .product-info p  { font-size: 0.85rem; color: var(--muted); line-height: 1.5; margin-bottom: 0.3rem; }
+        .product-price   { font-size: 1.5rem; font-weight: 900; color: var(--accent); margin: 0.5rem 0; }
+        .btn-order {
+            margin-top: auto;
+            background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+            color: var(--primary);
+            padding: 0.65rem 1.25rem;
+            border-radius: 9px;
+            border: none;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 3px 10px rgba(244,185,66,0.3);
+        }
+        .btn-order:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(244,185,66,0.4); }
+
+        /* ── LIEU ── */
+        .lieu-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+        .lieu-item {
+            background: var(--bg);
+            border-radius: 10px;
+            padding: 0.9rem 1.1rem;
+            border-left: 4px solid var(--accent);
+            font-size: 0.92rem;
+        }
+        .lieu-item strong { display: block; color: var(--primary); margin-bottom: 3px; }
+        .lieu-item span   { color: var(--muted); line-height: 1.5; }
+
+        /* ── CARTE ── */
+        .map-container {
+            width: 100%; height: 380px;
+            border-radius: var(--radius);
+            overflow: hidden;
+            border: 2px solid var(--border);
+            box-shadow: var(--shadow);
+        }
+        .map-container iframe { width: 100%; height: 100%; border: none; display: block; }
+
+        /* ── FOOTER ── */
+        footer {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white; padding: 1.5rem 2rem;
+            text-align: center; font-size: 0.88rem;
+        }
+
+        /* ── TOAST ── */
+        .toast {
+            position: fixed; bottom: 2rem; right: 2rem;
+            background: var(--primary); color: white;
+            padding: 1rem 1.5rem; border-radius: var(--radius);
+            box-shadow: 0 6px 24px rgba(0,0,0,0.2);
+            font-size: 0.92rem;
+            transform: translateY(140%);
+            transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+            z-index: 999; max-width: 320px;
+        }
+        .toast.show { transform: translateY(0); }
+
+        @media (max-width: 640px) {
+            .lieu-grid { grid-template-columns: 1fr; }
+            .card { padding: 1.5rem 1.25rem; }
+            .map-container { height: 260px; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-container">
+        <div class="logo-section" onclick="location.href='../index.html'" style="cursor:pointer;"><div class="logo" style="background-image:url('../img/logo_montety_bleu.png')"></div></div>
+        <a href="../index.html" style="color:rgba(255,255,255,0.85);text-decoration:none;font-size:0.88rem;font-weight:600;border:1.5px solid rgba(255,255,255,0.3);border-radius:20px;padding:0.35rem 0.9rem;">← Retour à l'accueil</a>
+    </div>
+</header>
+    <a href="../index.html" class="back-link">← Retour au site</a>
+</div>
+
+<div class="container">
+
+    <div class="card">
+        <div class="card-title">🛒 Produits à la vente</div>
+        <div class="products-grid">
+
+            <div class="product-card">
+                <div class="product-image">🍯</div>
+                <div class="product-info">
+                    <h3>Miel Acacia</h3>
+                    <p>Miel pur et naturel récolté localement, doux et floral</p>
+                    <div class="product-price">12 €</div>
+                    <p>Pot de 500 g — Récolte 2025</p>
+                    <button class="btn-order" onclick="commander('Miel Acacia', '12 €')">Commander</button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">🍯</div>
+                <div class="product-info">
+                    <h3>Miel Châtaigne</h3>
+                    <p>Miel foncé aux saveurs prononcées et persistantes</p>
+                    <div class="product-price">14 €</div>
+                    <p>Pot de 500 g — Récolte 2025</p>
+                    <button class="btn-order" onclick="commander('Miel Châtaigne', '14 €')">Commander</button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">🍬</div>
+                <div class="product-info">
+                    <h3>Bonbons au Miel</h3>
+                    <p>Bonbons artisanaux au miel naturel, sans colorants</p>
+                    <div class="product-price">8 €</div>
+                    <p>Boîte de 200 g</p>
+                    <button class="btn-order" onclick="commander('Bonbons au Miel', '8 €')">Commander</button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">🫙</div>
+                <div class="product-info">
+                    <h3>Préparation au Miel</h3>
+                    <p>Mélange miel et épices pour vos tisanes hivernales</p>
+                    <div class="product-price">10 €</div>
+                    <p>Pot de 300 g</p>
+                    <button class="btn-order" onclick="commander('Préparation au Miel', '10 €')">Commander</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">📍 Lieu de vente</div>
+        <div class="lieu-grid">
+            <div class="lieu-item">
+                <strong>Adresse</strong>
+                <span>Paroisse Saint Vincent de Paul<br>Toulon (83100)</span>
+            </div>
+            <div class="lieu-item">
+                <strong>Contact</strong>
+                <span>contact@amismontety.fr<br>04 94 00 00 00</span>
+            </div>
+        </div>
+        <div class="map-container">
+            <iframe
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2917.634856474893!2d5.931829!3d43.1249!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x12c5f3d1b7d1b1b1%3A0x1b1b1b1b1b1b1b1b!2sParo%20Saint%20Vincent%20de%20Paul%20Toulon!5e0!3m2!1sfr!2sfr!4v1234567890"
+                allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+                title="Lieu de vente — Paroisse Saint Vincent de Paul, Toulon">
+            </iframe>
+        </div>
+    </div>
+
+</div>
+
+<footer>
+    <p>&copy; 2026 Les Amis de Montety — Association loi 1901 à Toulon</p>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function commander(produit, prix) {
+    const subject = encodeURIComponent('Commande — ' + produit);
+    const body = encodeURIComponent(
+        'Bonjour,\n\nJe souhaite commander le produit suivant :\n\n' +
+        'Produit : ' + produit + '\nPrix unitaire : ' + prix + '\n\n' +
+        'Merci de me recontacter pour confirmer la commande.\n\nCordialement'
+    );
+    window.open('mailto:contact@amismontety.fr?subject=' + subject + '&body=' + body, '_blank');
+    const t = document.getElementById('toast');
+    t.textContent = '✉️ Email de commande pour « ' + produit + ' » ouvert dans votre client mail.';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 4000);
+}
+</script>
+
+</body>
+</html>
