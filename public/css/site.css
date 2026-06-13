@@ -275,6 +275,16 @@ img { max-width: 100%; display: block; }
 [data-helloasso-missing] { pointer-events: none; opacity: 0.55; }
 .don-fallback { margin-top: 8px; }
 
+/* ——— Entraide (annonces) ——— */
+.listing-card { display: flex; flex-direction: column; }
+.listing-card h3 { font-size: 1.3rem; color: var(--ardoise-800); margin: 0 0 8px; }
+.listing-desc { margin: 0 0 16px; color: var(--color-text-muted); font-size: 0.96rem; white-space: pre-wrap; }
+.listing-foot { margin-top: auto; border-top: 1px solid var(--creme-200); padding-top: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; }
+.listing-who, .listing-contact { display: flex; align-items: center; gap: 8px; color: var(--encre-soft); }
+.listing-who svg, .listing-contact svg { width: 16px; height: 16px; color: var(--brique-500); flex: none; }
+.listing-contact a { color: var(--ardoise-700); font-weight: 600; word-break: break-word; }
+.listing-date { color: var(--color-text-faint); font-size: 0.82rem; }
+
 /* ——— Icônes Lucide ——— */
 .lucide, [data-lucide] svg { stroke-width: 1.8; }
 

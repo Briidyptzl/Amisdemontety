@@ -108,12 +108,12 @@ async function init() {
 /* ----------------------------- Navigation des vues ----------------------------- */
 const VIEW_TITLES = {
   dashboard: 'Tableau de bord', events: 'Agenda', memberships: 'Adhésions',
-  messages: 'Messages', donations: 'Dons', settings: 'Réglages',
+  messages: 'Messages', donations: 'Dons', listings: 'Entraide', settings: 'Réglages',
 };
 function switchView(view) {
   $$('.dash-nav__item').forEach(b => b.classList.toggle('is-active', b.dataset.view === view));
   $('#view-title').textContent = VIEW_TITLES[view] || '';
-  const render = { dashboard: renderDashboard, events: renderEvents, memberships: renderMemberships, messages: renderMessages, donations: renderDonations, settings: renderSettings }[view];
+  const render = { dashboard: renderDashboard, events: renderEvents, memberships: renderMemberships, messages: renderMessages, donations: renderDonations, listings: renderAdminListings, settings: renderSettings }[view];
   if (render) render();
 }
 
@@ -413,6 +413,59 @@ function donModal() {
 async function delDon(id) {
   if (!confirm('Supprimer ce don ?')) return;
   try { await api('/admin/donations/' + id, { method: 'DELETE' }); toast('Don supprimé'); renderDonations(); }
+  catch (ex) { toast(ex.message, true); }
+}
+
+/* ----------------------------- Entraide (modération) ----------------------------- */
+const LISTING_STATUS = {
+  published: { badge: 'badge--olive', label: 'En ligne' },
+  pending: { badge: 'badge--ocre', label: 'En attente' },
+  hidden: { badge: 'badge--neutral', label: 'Masquée' },
+};
+async function renderAdminListings() {
+  const c = $('#dash-content');
+  c.innerHTML = '<p class="muted">Chargement…</p>';
+  const list = await api('/admin/listings');
+  c.innerHTML = `
+    <div class="panel">
+      <div class="panel-head"><h3>Annonces d'entraide (${list.length})</h3></div>
+      <div class="panel-body">
+        ${list.length ? `<table class="table">
+          <thead><tr><th>Annonce</th><th>Type</th><th>Déposée par</th><th>État</th><th class="col-actions">Actions</th></tr></thead>
+          <tbody>${list.map(listingRow).join('')}</tbody>
+        </table>` : `<div class="empty-state">Aucune annonce déposée.</div>`}
+      </div>
+    </div>`;
+  $$('[data-pub]', c).forEach(b => b.addEventListener('click', () => setListing(b.dataset.pub, 'published')));
+  $$('[data-hide]', c).forEach(b => b.addEventListener('click', () => setListing(b.dataset.hide, 'hidden')));
+  $$('[data-del]', c).forEach(b => b.addEventListener('click', () => delListing(b.dataset.del)));
+  icons();
+}
+function listingRow(l) {
+  const st = LISTING_STATUS[l.status] || LISTING_STATUS.published;
+  const typ = l.type === 'demande'
+    ? '<span class="badge badge--brique">Je cherche</span>'
+    : '<span class="badge badge--olive">Je propose</span>';
+  const isLive = l.status === 'published';
+  return `<tr>
+    <td><div class="cell-title">${esc(l.title)}</div><div class="cell-sub">${esc((l.description || '').slice(0, 80))}</div>${l.category ? `<div class="cell-sub">${esc(l.category)}${l.area ? ' · ' + esc(l.area) : ''}</div>` : ''}</td>
+    <td>${typ}</td>
+    <td>${esc(l.author_name)}<div class="cell-sub">${esc(l.contact)}</div><div class="cell-sub">${fmtDate(l.created_at)}</div></td>
+    <td><span class="badge ${st.badge}">${st.label}</span></td>
+    <td class="col-actions">
+      ${isLive
+        ? `<button class="icon-btn" data-hide="${l.id}" title="Masquer"><span data-lucide="eye-off"></span></button>`
+        : `<button class="icon-btn ok" data-pub="${l.id}" title="Publier"><span data-lucide="eye"></span></button>`}
+      <button class="icon-btn danger" data-del="${l.id}" title="Supprimer"><span data-lucide="trash-2"></span></button>
+    </td></tr>`;
+}
+async function setListing(id, status) {
+  try { await api('/admin/listings/' + id, { method: 'PATCH', body: JSON.stringify({ status }) }); toast(status === 'published' ? 'Annonce publiée' : 'Annonce masquée'); renderAdminListings(); }
+  catch (ex) { toast(ex.message, true); }
+}
+async function delListing(id) {
+  if (!confirm('Supprimer définitivement cette annonce ?')) return;
+  try { await api('/admin/listings/' + id, { method: 'DELETE' }); toast('Annonce supprimée'); renderAdminListings(); }
   catch (ex) { toast(ex.message, true); }
 }
 

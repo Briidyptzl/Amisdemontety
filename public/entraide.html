@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Entraide — Les Amis de Montety</title>
+<meta name="description" content="Le tableau d'entraide du quartier de Montety, à Toulon. Déposez une annonce : demandez un coup de main ou proposez vos services entre voisins." />
+<link rel="icon" href="assets/logo-montety.png" />
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/site.css" />
+</head>
+<body data-page="entraide">
+
+<header class="site-header" data-header></header>
+
+<main>
+  <div class="page-head">
+    <span class="eyebrow">Entraide</span>
+    <h1>Le coup de main entre voisins</h1>
+    <p class="lead" style="margin-top:14px">
+      Un service à rendre, un besoin à signaler&nbsp;? Déposez une petite annonce. On se connaît,
+      on s'entraide — à Montety et dans tout Toulon.
+    </p>
+    <div style="margin-top:22px">
+      <button class="btn btn--accent btn--md" id="toggle-form"><span data-lucide="plus"></span> Déposer une annonce</button>
+    </div>
+  </div>
+
+  <!-- Formulaire de dépôt -->
+  <div class="container" id="form-wrap" hidden>
+    <div class="card" style="padding:var(--space-7); max-width:760px; margin:0 auto 8px">
+      <div id="entraide-success" class="form-success" hidden>
+        <div class="pop"><span data-lucide="party-popper"></span></div>
+        <h3 style="font-size:1.6rem; margin:0 0 8px">Merci&nbsp;!</h3>
+        <p style="color:var(--color-text-muted); margin:0 0 24px">Votre annonce est publiée. Les voisins peuvent désormais vous contacter.</p>
+        <button class="btn btn--secondary btn--md" type="button" id="entraide-reset">Déposer une autre annonce</button>
+      </div>
+
+      <form id="entraide-form" novalidate>
+        <h2 style="font-size:1.4rem; margin:0 0 18px">Votre annonce</h2>
+        <div class="field-row">
+          <div class="field">
+            <label for="l-type">Je…</label>
+            <select id="l-type" name="type" required>
+              <option value="demande">cherche un coup de main</option>
+              <option value="offre">propose un service</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="l-cat">Catégorie</label>
+            <select id="l-cat" name="category"></select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="l-title">Titre</label>
+          <input id="l-title" name="title" maxlength="120" placeholder="Ex. Aide pour les courses le samedi" required />
+        </div>
+        <div class="field">
+          <label for="l-desc">Description</label>
+          <textarea id="l-desc" name="description" maxlength="2000" placeholder="Décrivez votre besoin ou votre proposition…" required></textarea>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="l-name">Votre nom</label>
+            <input id="l-name" name="author_name" maxlength="120" placeholder="Marie D." required />
+          </div>
+          <div class="field">
+            <label for="l-area">Secteur / quartier</label>
+            <input id="l-area" name="area" maxlength="120" placeholder="Montety, Le Mourillon…" />
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:10px">
+          <label for="l-contact">Comment vous joindre (e-mail ou téléphone)</label>
+          <input id="l-contact" name="contact" maxlength="200" placeholder="marie@exemple.fr ou 06 12 34 56 78" required />
+          <div class="hint">⚠️ Cette information sera visible publiquement sur l'annonce, pour que l'on puisse vous répondre.</div>
+        </div>
+        <!-- pot de miel anti-robot (ne pas remplir) -->
+        <input type="text" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true" />
+        <div style="display:flex; gap:12px; margin-top:16px; flex-wrap:wrap">
+          <button class="btn btn--accent btn--md" type="submit" id="entraide-submit">Publier l'annonce</button>
+          <button class="btn btn--ghost btn--md" type="button" id="entraide-cancel">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Filtres + liste -->
+  <div class="container" style="padding-top:32px; padding-bottom:96px">
+    <div class="filters" id="entraide-filters">
+      <button class="filter-chip is-active" data-filter="tous">Toutes</button>
+      <button class="filter-chip" data-filter="demande">Je cherche</button>
+      <button class="filter-chip" data-filter="offre">Je propose</button>
+    </div>
+    <div class="grid-3" id="entraide-grid" data-listings-grid>
+      <p style="color:var(--color-text-muted)">Chargement des annonces…</p>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer" data-footer></footer>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="js/main.js"></script>
+<script src="js/entraide.js"></script>
+</body>
+</html>

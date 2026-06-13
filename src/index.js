@@ -168,6 +168,30 @@ async function handleApi(request, env, url) {
     return json({ ok: true });
   }
 
+  // Entraide — petites annonces publiques
+  if (path === '/api/listings' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT id, type, category, title, description, author_name, contact, area, created_at
+         FROM listings WHERE status = 'published'
+        ORDER BY created_at DESC, id DESC`).all();
+    return json(results || []);
+  }
+  if (path === '/api/listings' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    if (clean(b.website)) return json({ ok: true }); // pot de miel anti-robot
+    const type = (b.type === 'offre' || b.type === 'demande') ? b.type : '';
+    const title = clean(b.title, 120), description = clean(b.description, 2000);
+    const author = clean(b.author_name, 120), contact = clean(b.contact, 200);
+    const category = clean(b.category, 60), area = clean(b.area, 120);
+    if (!type || !title || !description || !author || !contact)
+      return json({ error: 'Type, titre, description, nom et contact sont requis.' }, 400);
+    await env.DB.prepare(
+      `INSERT INTO listings (type, category, title, description, author_name, contact, area, status)
+       VALUES (?,?,?,?,?,?,?, 'published')`)
+      .bind(type, category, title, description, author, contact, area).run();
+    return json({ ok: true });
+  }
+
   /* ===================== Authentification ===================== */
 
   if (path === '/api/admin/login' && method === 'POST') {
@@ -369,6 +393,24 @@ async function handleAdmin(request, env, url, method, session) {
   const donMatch = path.match(/^\/api\/admin\/donations\/(\d+)$/);
   if (donMatch && method === 'DELETE') {
     await env.DB.prepare(`DELETE FROM donations WHERE id=?`).bind(Number(donMatch[1])).run();
+    return json({ ok: true });
+  }
+
+  /* ----- Entraide (modération des annonces) ----- */
+  if (path === '/api/admin/listings' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT * FROM listings ORDER BY created_at DESC, id DESC`).all();
+    return json(results || []);
+  }
+  const lstMatch = path.match(/^\/api\/admin\/listings\/(\d+)$/);
+  if (lstMatch && method === 'PATCH') {
+    const b = await request.json().catch(() => ({}));
+    const status = ['published', 'pending', 'hidden'].includes(b.status) ? b.status : 'published';
+    await env.DB.prepare(`UPDATE listings SET status=? WHERE id=?`).bind(status, Number(lstMatch[1])).run();
+    return json({ ok: true });
+  }
+  if (lstMatch && method === 'DELETE') {
+    await env.DB.prepare(`DELETE FROM listings WHERE id=?`).bind(Number(lstMatch[1])).run();
     return json({ ok: true });
   }
 

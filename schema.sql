@@ -70,7 +70,22 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Entraide — petites annonces (demandes de coup de main / offres de service)
+CREATE TABLE IF NOT EXISTS listings (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  type        TEXT NOT NULL,                 -- 'demande' | 'offre'
+  category    TEXT,
+  title       TEXT NOT NULL,
+  description TEXT NOT NULL,
+  author_name TEXT NOT NULL,
+  contact     TEXT NOT NULL,                 -- e-mail ou téléphone (affiché publiquement)
+  area        TEXT,
+  status      TEXT NOT NULL DEFAULT 'published', -- published / pending / hidden
+  created_at  TEXT DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_events_published   ON events (published, starts_at);
 CREATE INDEX IF NOT EXISTS idx_contact_read       ON contact_messages (read, created_at);
 CREATE INDEX IF NOT EXISTS idx_memberships_status ON memberships (status, created_at);
 CREATE INDEX IF NOT EXISTS idx_donations_date     ON donations (donated_at);
+CREATE INDEX IF NOT EXISTS idx_listings_status    ON listings (status, created_at);

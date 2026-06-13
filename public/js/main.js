@@ -4,6 +4,7 @@ const NAV_LINKS = [
   { id: 'accueil', label: 'Accueil', href: 'index.html' },
   { id: 'agenda', label: "L'agenda", href: 'agenda.html' },
   { id: 'quartier', label: 'Le quartier', href: 'quartier.html' },
+  { id: 'entraide', label: 'Entraide', href: 'entraide.html' },
   { id: 'adherer', label: 'Adhérer', href: 'adherer.html' },
   { id: 'contact', label: 'Contact', href: 'contact.html' },
 ];
@@ -50,6 +51,7 @@ function renderFooter() {
           <a href="index.html">Accueil</a>
           <a href="agenda.html">L'agenda</a>
           <a href="quartier.html">Le quartier</a>
+          <a href="entraide.html">Entraide</a>
           <a href="adherer.html">Adhérer</a>
           <a href="don.html">Faire un don</a>
         </div>
