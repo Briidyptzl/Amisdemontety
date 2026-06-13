@@ -56,7 +56,7 @@ function renderFooter() {
         <div class="footer-col">
           <h4>Nous trouver</h4>
           <p>Place de Montety, Toulon</p>
-          <a href="mailto:bonjour@amisdemontety.fr" data-contact-email>bonjour@amisdemontety.fr</a>
+          <a href="mailto:bonjour@lesamisdemontety.com" data-contact-email>bonjour@lesamisdemontety.com</a>
           <a href="contact.html">Nous écrire</a>
           <div class="footer-script script">tous les âges, un même quartier</div>
         </div>
