@@ -1,84 +1,86 @@
 # Site — Les Amis de Montety
 
 Site de l'association **Les Amis de Montety** (association de quartier intergénérationnelle, Toulon),
-reconstruit à partir du système de design « Charte Graphique » et hébergé sur **Cloudflare**.
+refondu selon la charte graphique et hébergé sur **Cloudflare** (Worker + base D1).
 
-- **Front** : HTML / CSS / JS statique, fidèle aux tokens et composants de la charte.
-- **Back** : un **Cloudflare Worker** sert le site et expose une petite API (`/api/*`)
-  adossée à une base de données **D1**.
+- **Front** : HTML / CSS / JS statique (`public/`), fidèle aux tokens du design system.
+- **Back** : un **Cloudflare Worker** (`src/index.js`) sert le site et expose une API (`/api/*`)
+  adossée à la base **D1** `amisdemontety`.
+- **Paiement** : adhésion et dons via **HelloAsso** (gratuit pour l'association).
 
-## Contenu
+## Pages
 
-| Page | Fichier | Description |
-|------|---------|-------------|
-| Accueil | `public/index.html` | Hero, mission, aperçu agenda, bandeau adhésion |
-| L'agenda | `public/agenda.html` | Liste filtrable des événements (depuis l'API) |
-| Le quartier | `public/quartier.html` | Histoire du quartier et de Paulin de Montety |
-| Adhérer | `public/adherer.html` | Formulaire d'adhésion (enregistré en base) |
+| Page | Fichier | Rôle |
+|------|---------|------|
+| Accueil | `public/index.html` | Hero, mission, aperçu agenda, bandeau adhésion/don |
+| Agenda | `public/agenda.html` | Événements filtrables (depuis la base) |
+| Le quartier | `public/quartier.html` | Histoire du quartier |
+| Adhérer | `public/adherer.html` | Bouton HelloAsso + formulaire de demande |
+| Faire un don | `public/don.html` | Bouton HelloAsso + repli chèque/virement |
+| Contact | `public/contact.html` | Formulaire de contact |
+| **Administration** | `public/admin.html` | Portail sécurisé (voir plus bas) |
 
-API du Worker (`src/index.js`) :
-- `GET  /api/events` — agenda public (table `events`)
-- `POST /api/contact` — message de contact (table `contact_messages`)
-- `POST /api/membership` — demande d'adhésion (table `memberships`)
-
-> Ouvert en local sans serveur, le site fonctionne quand même : l'agenda retombe sur des
-> données d'exemple et les formulaires affichent la confirmation. Les données réelles
-> n'arrivent qu'une fois déployé avec la base D1.
+## API du Worker
+- `GET  /api/config` · `GET /api/events` · `POST /api/contact` · `POST /api/membership` (public)
+- `POST /api/admin/login` · `logout` · `GET /api/admin/me` · `POST /api/admin/setup` (1re install)
+- `/api/admin/*` (protégé) : `stats`, `settings`, `events`, `memberships`, `messages`,
+  `donations`, `change-password`.
 
 ---
 
-## Déploiement A — GitHub → Cloudflare (recommandé, sans rien installer)
+## ✅ Déjà fait
+- Base **D1 `amisdemontety`** créée (région Europe de l'Ouest), schéma + agenda d'exemple chargés.
+- **Compte administrateur** créé et **secret de session** généré (stocké dans la base, hors dépôt).
+- Code poussé sur la branche **`main`** de ce dépôt. L'ancien site est conservé sur **`master`**
+  (et `ancien-site`).
 
-1. **Pousser ce dossier sur GitHub** (un dépôt dédié, p. ex. `amisdemontety-site`).
-2. Dans le **dashboard Cloudflare** → *Workers & Pages* → *Create* → *Import a repository*,
-   choisir ce dépôt. Cloudflare détecte `wrangler.toml` et déploie à chaque `git push`.
-3. **Créer la base D1** (une fois) : *Storage & Databases* → *D1* → *Create* → nom `amisdemontety`.
-   Copier l'**ID** affiché et le coller dans `wrangler.toml` (`database_id`).
-4. **Charger le schéma** : dans la console D1 de la base, exécuter le contenu de `schema.sql`
-   puis (facultatif) `seed.sql` pour les événements d'exemple.
-5. Re-pousser sur GitHub : le site est en ligne sur `*.workers.dev`, puis sur votre domaine.
+## ▶️ Mettre le site en ligne (sans rien installer)
 
-## Déploiement B — en local (nécessite Node.js)
+Le Worker doit être déployé une fois. Le plus simple, via le **dashboard Cloudflare** :
 
+1. **Workers & Pages** → **Create** → onglet **Import a repository** → connectez GitHub et
+   choisissez **`Briidyptzl/Amisdemontety`**, branche **`main`**.
+2. Cloudflare lit `wrangler.toml` (le binding D1 est déjà configuré) et déploie. À chaque `git push`
+   sur `main`, le site se redéploie automatiquement.
+3. Le site est en ligne sur `https://amisdemontety.<votre-sous-domaine>.workers.dev`, puis sur
+   votre nom de domaine (onglet **Custom Domains** du Worker).
+
+> Variante en ligne de commande (nécessite Node.js) : `npm install` puis `npx wrangler deploy`.
+
+## 🔑 Se connecter à l'administration
+- Adresse : `…/admin.html`
+- Identifiant : **briidyb@gmail.com**
+- Mot de passe temporaire : **fourni séparément dans le chat** — à changer dès la 1re connexion
+  (Réglages → Changer mon mot de passe).
+
+## 💳 Activer les paiements HelloAsso
+1. Créez un compte association sur **helloasso.com** (gratuit) et deux campagnes :
+   une **adhésion**, un **don/collecte**.
+2. Copiez l'URL publique de chaque campagne.
+3. Dans l'administration → **Réglages**, collez les deux liens. Les boutons « Adhérer en ligne »
+   et « Faire un don » du site les utilisent automatiquement (sans redéploiement).
+   Tant qu'ils sont vides, la page Don propose le repli chèque/virement.
+
+---
+
+## Sécurité
+- Mots de passe administrateurs **hachés** (PBKDF2-SHA256, sel par compte) — jamais en clair.
+- Sessions **signées HMAC-SHA256**, cookie **HttpOnly / Secure / SameSite=Strict**, expiration 8 h.
+- Secret de session et identifiants **uniquement dans la base D1**, jamais dans le dépôt Git.
+- ⚠️ **À faire par vous** : révoquer l'ancien **token GitHub** (il avait été stocké en clair) —
+  GitHub → Settings → Developer settings → Personal access tokens → Revoke.
+
+## Gérer l'agenda
+Tout se fait depuis l'administration (onglet **Agenda** : ajouter / modifier / publier / supprimer).
+Catégories : `Atelier`, `Événement`, `Entraide`, `Sortie`.
+
+## Développement local (optionnel, nécessite Node.js)
 ```bash
 npm install
-npx wrangler login
-npx wrangler d1 create amisdemontety      # → copier database_id dans wrangler.toml
-npm run db:schema                          # crée les tables (--remote)
-npm run db:seed                            # événements d'exemple (facultatif)
-npm run deploy                             # met le site en ligne
-# Développement local :
-npm run db:schema:local && npm run db:seed:local && npm run dev
+npm run db:schema:local && npm run db:seed:local
+npm run dev
 ```
-
----
-
-## Gérer les événements de l'agenda
-
-Tant que l'interface d'administration n'est pas refaite (phase 2), on ajoute/modifie les
-événements directement dans la base D1 (console D1 du dashboard) :
-
-```sql
-INSERT INTO events (title, cat, tone, free, "when", descr, starts_at, published)
-VALUES ('Vide-grenier', 'Événement', 'brique', 0, 'DIM. 14 SEPT. · 8H',
-        'Le grand vide-grenier de la rue, ouvert à tous.', '2026-09-14T08:00', 1);
-```
-
-`cat` : `Atelier` · `Événement` · `Entraide` · `Sortie`
-`tone` : `ocre` · `brique` · `olive` · `ardoise` (laisser vide = déduit de la catégorie)
-`free` : `1` (gratuit) ou `0` · `published` : `1` (visible) ou `0` (brouillon)
-
----
 
 ## Reste à faire (phases suivantes)
-
-- **Phase 2** : adhésion & dons en ligne via **HelloAsso** (gratuit pour l'association),
-  pages producteurs (miel, maraîcher), coup de pouce, contact, CGU.
-- **Phase 3** : interface d'administration (agenda, adhérents, dons, messages) avec
-  authentification réelle (mots de passe hachés côté serveur, pas dans le code).
-
-## Design
-
-Source : `../Les Amis de Montety — Charte Graphique/`. Tokens repris dans
-`public/css/tokens.css`, composants (boutons, cartes, badges, champs) dans `public/css/site.css`.
-Ne pas ré-encoder de valeurs en dur : utiliser les variables CSS.
+- Pages producteurs (miel, maraîcher) et coup de pouce dans le nouveau design.
+- Export/relances des adhérents, statistiques avancées.
