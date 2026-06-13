@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Administration — Les Amis de Montety</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" href="assets/logo-montety.png" />
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/site.css" />
+<link rel="stylesheet" href="css/admin.css" />
+</head>
+<body class="admin-body">
+
+<!-- ÉCRAN DE CONNEXION -->
+<div id="login-screen" class="login-screen" hidden>
+  <div class="login-card card">
+    <div class="medallion" style="width:88px;height:88px;margin:0 auto 18px">
+      <img src="assets/logo-montety.png" alt="" style="width:58px" />
+    </div>
+    <h1 style="font-size:1.7rem; text-align:center; margin:0 0 4px">Espace administrateur</h1>
+    <p style="text-align:center; color:var(--color-text-muted); margin:0 0 24px; font-size:0.95rem">Les Amis de Montety</p>
+    <form id="login-form" novalidate>
+      <div class="field">
+        <label for="login-email">E-mail</label>
+        <input id="login-email" name="email" type="email" autocomplete="username" required />
+      </div>
+      <div class="field" style="margin-bottom:20px">
+        <label for="login-password">Mot de passe</label>
+        <input id="login-password" name="password" type="password" autocomplete="current-password" required />
+      </div>
+      <div id="login-error" class="login-error" hidden></div>
+      <button class="btn btn--accent btn--lg btn--full" type="submit" id="login-submit">Se connecter</button>
+    </form>
+    <p style="text-align:center; margin-top:18px"><a href="index.html" style="font-size:0.9rem; color:var(--color-text-muted)">← Retour au site</a></p>
+  </div>
+</div>
+
+<!-- TABLEAU DE BORD -->
+<div id="dashboard" class="dash" hidden>
+  <aside class="dash-side">
+    <a class="dash-brand" href="index.html">
+      <img src="assets/logo-montety.png" alt="" />
+      <span>Montety<br/><small>administration</small></span>
+    </a>
+    <nav class="dash-nav" id="dash-nav">
+      <button class="dash-nav__item is-active" data-view="dashboard"><span data-lucide="layout-dashboard"></span> Tableau de bord</button>
+      <button class="dash-nav__item" data-view="events"><span data-lucide="calendar-days"></span> Agenda</button>
+      <button class="dash-nav__item" data-view="memberships"><span data-lucide="users"></span> Adhésions <span class="nav-badge" id="badge-memberships" hidden></span></button>
+      <button class="dash-nav__item" data-view="messages"><span data-lucide="mail"></span> Messages <span class="nav-badge" id="badge-messages" hidden></span></button>
+      <button class="dash-nav__item" data-view="donations"><span data-lucide="hand-heart"></span> Dons</button>
+      <button class="dash-nav__item" data-view="settings"><span data-lucide="settings"></span> Réglages</button>
+    </nav>
+    <div class="dash-side__foot">
+      <div class="dash-user"><span data-lucide="user-round"></span> <span id="dash-user-name">—</span></div>
+      <button class="btn btn--ghost btn--sm" id="logout-btn"><span data-lucide="log-out"></span> Déconnexion</button>
+    </div>
+  </aside>
+
+  <main class="dash-main">
+    <header class="dash-topbar">
+      <button class="nav-toggle" id="dash-side-toggle" aria-label="Menu"><span data-lucide="menu"></span></button>
+      <h2 id="view-title">Tableau de bord</h2>
+      <a class="btn btn--secondary btn--sm" href="index.html" target="_blank" rel="noopener"><span data-lucide="external-link"></span> Voir le site</a>
+    </header>
+    <div class="dash-content" id="dash-content"><!-- injecté par admin.js --></div>
+  </main>
+</div>
+
+<!-- MODALE GÉNÉRIQUE -->
+<div id="modal" class="modal-overlay" hidden>
+  <div class="modal-card card" id="modal-card"></div>
+</div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>

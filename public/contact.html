@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Contact — Les Amis de Montety</title>
+<meta name="description" content="Écrivez aux Amis de Montety. Une question, une idée, un coup de main à proposer ? On vous répond." />
+<link rel="icon" href="assets/logo-montety.png" />
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/site.css" />
+</head>
+<body data-page="contact">
+
+<header class="site-header" data-header></header>
+
+<main>
+  <div class="container" style="padding-top:64px; padding-bottom:96px">
+    <div class="two-col">
+      <div>
+        <span class="eyebrow">Contact</span>
+        <h1 style="font-weight:500; font-size:3rem; letter-spacing:-0.025em; margin:10px 0 16px">Écrivez-nous</h1>
+        <p class="lead" style="max-width:42ch">
+          Une question, une idée, un coup de main à proposer&nbsp;? Passez quand vous voulez, c'est
+          ouvert à tous. On vous répond au plus vite.
+        </p>
+        <div class="checklist">
+          <div class="row"><span data-lucide="map-pin"></span><span>Place de Montety, 83100 Toulon</span></div>
+          <div class="row"><span data-lucide="mail"></span><a href="mailto:bonjour@amisdemontety.fr" data-contact-email>bonjour@amisdemontety.fr</a></div>
+        </div>
+        <p class="script" style="font-size:1.7rem; color:var(--brique-600); margin-top:28px">
+          À très vite au quartier&nbsp;!
+        </p>
+      </div>
+
+      <div class="card" style="padding: var(--space-7)">
+        <div id="contact-success" class="form-success" hidden>
+          <div class="pop"><span data-lucide="party-popper"></span></div>
+          <h3 style="font-size:1.7rem; margin:0 0 8px">Merci&nbsp;!</h3>
+          <p style="color:var(--color-text-muted); margin:0 0 24px">Votre message est bien arrivé. On vous répond dans les plus brefs délais.</p>
+          <button class="btn btn--secondary btn--md" type="button" id="contact-reset">Nouveau message</button>
+        </div>
+
+        <form id="contact-form" novalidate>
+          <div class="field">
+            <label for="cname">Votre nom</label>
+            <input id="cname" name="name" placeholder="Marie Dupont" required />
+          </div>
+          <div class="field">
+            <label for="cemail">E-mail</label>
+            <input id="cemail" name="email" type="email" placeholder="marie@exemple.fr" required />
+          </div>
+          <div class="field">
+            <label for="csubject">Sujet</label>
+            <input id="csubject" name="subject" placeholder="Une idée d'atelier…" />
+          </div>
+          <div class="field" style="margin-bottom:24px">
+            <label for="cmessage">Votre message</label>
+            <textarea id="cmessage" name="message" placeholder="Dites-nous tout…" required></textarea>
+          </div>
+          <button class="btn btn--accent btn--lg btn--full" type="submit" id="contact-submit">Envoyer le message</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer" data-footer></footer>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="js/main.js"></script>
+<script src="js/config.js"></script>
+<script src="js/contact.js"></script>
+</body>
+</html>

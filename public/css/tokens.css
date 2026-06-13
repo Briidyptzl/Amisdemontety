@@ -1,0 +1,167 @@
+/* ===========================================================
+   Les Amis de Montety — Tokens (couleurs, typo, espacement)
+   Repris fidèlement du design system « Charte Graphique ».
+   =========================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Hanken+Grotesk:wght@400;500;600;700;800&family=Caveat:wght@500;600;700&display=swap');
+
+:root {
+  /* — Ardoise (bleu du logo) — */
+  --ardoise-900: #1A2B34;
+  --ardoise-800: #213643;
+  --ardoise-700: #29414E;
+  --ardoise-600: #355160;
+  --ardoise-500: #4C6877;
+  --ardoise-400: #7691A0;
+  --ardoise-300: #A8BDC8;
+  --ardoise-200: #CEDCE3;
+  --ardoise-100: #E6EEF2;
+
+  /* — Terre cuite / Brique — */
+  --brique-700: #9E4029;
+  --brique-600: #BB5238;
+  --brique-500: #CE6446;
+  --brique-400: #DC8369;
+  --brique-300: #E9AB96;
+  --brique-200: #F2CCBD;
+
+  /* — Ocre / Soleil — */
+  --ocre-600: #C2862C;
+  --ocre-500: #E0A24B;
+  --ocre-400: #ECBD7B;
+  --ocre-300: #F3D4A2;
+  --ocre-200: #F8E6C5;
+
+  /* — Olive / Sauge — */
+  --olive-700: #5A6840;
+  --olive-600: #6E7E4E;
+  --olive-500: #869662;
+  --olive-300: #B8C29B;
+  --olive-200: #D7DDC4;
+
+  /* — Crème & sable — */
+  --creme-50:  #FBF7EF;
+  --creme-100: #F7F1E7;
+  --creme-200: #EFE6D5;
+  --sable-300: #E4D7C1;
+  --sable-400: #D6C4A6;
+
+  /* — Encre — */
+  --encre:      #233640;
+  --encre-soft: #4E5C66;
+  --blanc:      #FFFFFF;
+
+  /* — Alias sémantiques — */
+  --color-bg:            var(--creme-50);
+  --color-bg-warm:       var(--creme-100);
+  --color-surface:       var(--blanc);
+  --color-surface-cream: var(--creme-100);
+  --color-surface-sunk:  var(--creme-200);
+
+  --color-text:        var(--encre);
+  --color-text-muted:  var(--encre-soft);
+  --color-text-faint:  var(--ardoise-400);
+  --color-text-invert: var(--creme-50);
+
+  --color-primary:        var(--ardoise-700);
+  --color-primary-hover:  var(--ardoise-800);
+  --color-primary-press:  var(--ardoise-900);
+  --color-on-primary:     var(--creme-50);
+
+  --color-accent:        var(--brique-500);
+  --color-accent-hover:  var(--brique-600);
+  --color-accent-press:  var(--brique-700);
+  --color-on-accent:     var(--creme-50);
+
+  --color-gold:    var(--ocre-500);
+  --color-olive:   var(--olive-600);
+
+  --color-border:        var(--sable-300);
+  --color-border-strong: var(--sable-400);
+  --color-border-cool:   var(--ardoise-200);
+
+  --color-success: var(--olive-600);
+  --color-warning: var(--ocre-600);
+  --color-danger:  var(--brique-600);
+
+  --color-focus-ring: color-mix(in srgb, var(--ardoise-600) 45%, transparent);
+  --color-selection:  var(--ocre-200);
+
+  /* familles */
+  --font-display: 'Newsreader', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+  --font-body:    'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-script:  'Caveat', 'Segoe Script', cursive;
+
+  /* graisses */
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semibold:600;
+  --fw-bold:    700;
+  --fw-black:   800;
+
+  /* échelle typographique */
+  --text-xs:   0.75rem;
+  --text-sm:   0.875rem;
+  --text-base: 1rem;
+  --text-md:   1.125rem;
+  --text-lg:   1.375rem;
+  --text-xl:   1.75rem;
+  --text-2xl:  2.25rem;
+  --text-3xl:  2.875rem;
+  --text-4xl:  3.75rem;
+  --text-5xl:  5rem;
+
+  /* interlignes */
+  --leading-tight:   1.08;
+  --leading-snug:    1.22;
+  --leading-normal:  1.5;
+  --leading-relaxed: 1.7;
+
+  /* interlettrage */
+  --tracking-tight:  -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide:   0.04em;
+  --tracking-caps:   0.14em;
+
+  /* espacement (base 4px) */
+  --space-1:  0.25rem;
+  --space-2:  0.5rem;
+  --space-3:  0.75rem;
+  --space-4:  1rem;
+  --space-5:  1.5rem;
+  --space-6:  2rem;
+  --space-7:  3rem;
+  --space-8:  4rem;
+  --space-9:  6rem;
+  --space-10: 8rem;
+
+  --measure:    66ch;
+  --container:  1180px;
+
+  /* rayons */
+  --radius-xs:  4px;
+  --radius-sm:  8px;
+  --radius-md:  12px;
+  --radius-lg:  18px;
+  --radius-xl:  28px;
+  --radius-pill: 999px;
+  --radius-circle: 50%;
+
+  /* bordures */
+  --border-hair: 1px;
+  --border-thin: 1.5px;
+  --border-med:  2px;
+
+  /* ombres */
+  --shadow-xs: 0 1px 2px rgba(58, 42, 28, 0.06);
+  --shadow-sm: 0 2px 6px rgba(58, 42, 28, 0.08);
+  --shadow-md: 0 6px 18px rgba(48, 38, 26, 0.10);
+  --shadow-lg: 0 16px 40px rgba(40, 32, 22, 0.14);
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,0.6);
+
+  /* motion */
+  --ease-out:  cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.2, 1);
+  --dur-fast: 130ms;
+  --dur-base: 220ms;
+  --dur-slow: 380ms;
+}

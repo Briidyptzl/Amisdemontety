@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>L'agenda — Les Amis de Montety</title>
+<meta name="description" content="Tous les rendez-vous du quartier de Montety : ateliers, événements, entraide et sorties. Ouvert à tous." />
+<link rel="icon" href="assets/logo-montety.png" />
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/site.css" />
+</head>
+<body data-page="agenda">
+
+<header class="site-header" data-header></header>
+
+<main>
+  <div class="page-head">
+    <span class="eyebrow">Agenda</span>
+    <h1>Les rendez-vous du quartier</h1>
+  </div>
+
+  <div class="container" style="padding-bottom:96px">
+    <div class="filters" id="agenda-filters">
+      <button class="filter-chip is-active" data-filter="Tous">Tous</button>
+      <button class="filter-chip" data-filter="Atelier">Atelier</button>
+      <button class="filter-chip" data-filter="Événement">Événement</button>
+      <button class="filter-chip" data-filter="Entraide">Entraide</button>
+      <button class="filter-chip" data-filter="Sortie">Sortie</button>
+    </div>
+    <div class="grid-3" id="agenda-grid" data-events-grid>
+      <p style="color:var(--color-text-muted)">Chargement de l'agenda…</p>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer" data-footer></footer>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="js/main.js"></script>
+<script src="js/agenda.js"></script>
+</body>
+</html>

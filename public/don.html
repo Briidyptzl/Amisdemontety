@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Faire un don — Les Amis de Montety</title>
+<meta name="description" content="Soutenez la vie du quartier de Montety. Don sécurisé via HelloAsso, avec reçu fiscal automatique." />
+<link rel="icon" href="assets/logo-montety.png" />
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/site.css" />
+</head>
+<body data-page="don">
+
+<header class="site-header" data-header></header>
+
+<main>
+  <div class="container" style="padding-top:64px; padding-bottom:96px">
+    <div class="two-col">
+      <div>
+        <span class="eyebrow">Soutenir</span>
+        <h1 style="font-weight:500; font-size:3rem; letter-spacing:-0.025em; margin:10px 0 16px">Faire un don au quartier</h1>
+        <p class="lead" style="max-width:44ch">
+          Chaque don aide à faire vivre les rendez-vous du quartier : les ateliers, les repas de rue,
+          l'aide aux devoirs, les coups de main entre voisins. Merci de votre soutien.
+        </p>
+        <div class="checklist">
+          <div class="row"><span data-lucide="check-circle-2"></span><span>Paiement 100&nbsp;% sécurisé via HelloAsso</span></div>
+          <div class="row"><span data-lucide="check-circle-2"></span><span>Reçu fiscal envoyé automatiquement</span></div>
+          <div class="row"><span data-lucide="check-circle-2"></span><span>Don de 50&nbsp;€ = 17&nbsp;€ après réduction d'impôt</span></div>
+        </div>
+        <p class="script" style="font-size:1.7rem; color:var(--brique-600); margin-top:28px">
+          Un grand merci&nbsp;!
+        </p>
+      </div>
+
+      <div class="card" style="padding: var(--space-7); text-align:center">
+        <div class="medallion" style="width:120px;height:120px;margin:0 auto 22px">
+          <img src="assets/logo-montety.png" alt="" style="width:78px" />
+        </div>
+        <h2 style="font-size:1.6rem; margin:0 0 8px">Je fais un don</h2>
+        <p style="color:var(--color-text-muted); margin:0 0 22px">Choisissez librement le montant sur la page sécurisée HelloAsso.</p>
+
+        <a class="btn btn--accent btn--lg btn--full" href="#" data-helloasso="donation" target="_blank" rel="noopener">
+          <span data-lucide="hand-heart"></span> Donner via HelloAsso
+        </a>
+
+        <div data-helloasso-fallback="donation" class="don-fallback">
+          <p class="hint" style="margin:18px 0 8px">Le don en ligne sera bientôt disponible. En attendant, vous pouvez nous soutenir par&nbsp;:</p>
+          <ul style="text-align:left; color:var(--color-text-muted); font-size:0.95rem; line-height:1.8; margin:0; padding-left:1.1rem">
+            <li><strong>Chèque</strong> à l'ordre de « Les Amis de Montety »</li>
+            <li><strong>Virement</strong> — RIB sur demande à <a href="mailto:bonjour@amisdemontety.fr" data-contact-email>bonjour@amisdemontety.fr</a></li>
+          </ul>
+        </div>
+
+        <p class="form-note" style="margin-top:18px">Association de quartier · Toulon</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer" data-footer></footer>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="js/main.js"></script>
+<script src="js/config.js"></script>
+</body>
+</html>

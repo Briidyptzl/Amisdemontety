@@ -1,0 +1,15 @@
+name = "amisdemontety"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+# Site statique servi par le Worker (dossier public/)
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# Base de données D1
+# → Renseignez database_id après `wrangler d1 create amisdemontety`
+[[d1_databases]]
+binding = "DB"
+database_name = "amisdemontety"
+database_id = "2b4a8cbd-e023-450f-b4ab-34eadd405ea7"

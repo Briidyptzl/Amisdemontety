@@ -1,0 +1,149 @@
+/* ===========================================================
+   Les Amis de Montety — Espace administrateur
+   =========================================================== */
+
+.admin-body { background: var(--creme-50); }
+
+/* ——— Connexion ——— */
+.login-screen {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: radial-gradient(120% 80% at 80% -10%, var(--ocre-200) 0%, transparent 55%), var(--creme-100);
+}
+.login-card { width: 100%; max-width: 420px; padding: var(--space-7); }
+.login-error {
+  background: var(--brique-200); color: var(--brique-700);
+  border-radius: var(--radius-md); padding: 10px 14px; font-size: 0.9rem; margin-bottom: 16px;
+}
+
+/* ——— Structure du tableau de bord ——— */
+.dash { display: grid; grid-template-columns: 264px 1fr; min-height: 100vh; }
+
+.dash-side {
+  background: var(--ardoise-900); color: var(--ardoise-200);
+  display: flex; flex-direction: column; padding: 22px 16px;
+  position: sticky; top: 0; height: 100vh;
+}
+.dash-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; padding: 6px 8px 22px; }
+.dash-brand img { width: 40px; }
+.dash-brand span { font-family: var(--font-display); color: var(--creme-50); font-size: 1.15rem; line-height: 1.05; }
+.dash-brand small { font-family: var(--font-body); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ardoise-300); }
+
+.dash-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.dash-nav__item {
+  display: flex; align-items: center; gap: 12px;
+  background: none; border: none; cursor: pointer; text-align: left;
+  font-family: var(--font-body); font-size: 0.95rem; font-weight: 600;
+  color: var(--ardoise-200); padding: 11px 14px; border-radius: var(--radius-md);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.dash-nav__item svg { width: 20px; height: 20px; }
+.dash-nav__item:hover { background: var(--ardoise-800); color: var(--creme-50); }
+.dash-nav__item.is-active { background: var(--brique-500); color: var(--creme-50); }
+.nav-badge {
+  margin-left: auto; background: var(--ocre-500); color: var(--ardoise-900);
+  font-size: 0.72rem; font-weight: 700; min-width: 20px; height: 20px; padding: 0 6px;
+  border-radius: var(--radius-pill); display: inline-flex; align-items: center; justify-content: center;
+}
+.dash-nav__item.is-active .nav-badge { background: var(--creme-50); color: var(--brique-600); }
+
+.dash-side__foot { border-top: 1px solid var(--ardoise-800); padding-top: 16px; margin-top: 12px; }
+.dash-user { display: flex; align-items: center; gap: 10px; color: var(--creme-100); font-size: 0.9rem; margin-bottom: 12px; }
+.dash-user svg { width: 18px; height: 18px; }
+.dash-side__foot .btn { color: var(--ardoise-200); width: 100%; }
+.dash-side__foot .btn:hover { background: var(--ardoise-800); color: var(--creme-50); }
+
+/* ——— Zone principale ——— */
+.dash-main { display: flex; flex-direction: column; min-width: 0; }
+.dash-topbar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 18px 32px; border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg); position: sticky; top: 0; z-index: 10;
+}
+.dash-topbar h2 { margin: 0; font-size: 1.5rem; flex: 1; }
+#dash-side-toggle { display: none; }
+.dash-content { padding: 32px; }
+
+/* ——— Cartes de statistiques ——— */
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 32px; }
+.stat-card { padding: 22px; display: flex; flex-direction: column; gap: 6px; }
+.stat-card .stat-ic {
+  width: 44px; height: 44px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;
+  background: var(--ocre-200); color: var(--brique-600); margin-bottom: 6px;
+}
+.stat-card .stat-val { font-family: var(--font-display); font-size: 2.1rem; color: var(--ardoise-800); line-height: 1; }
+.stat-card .stat-lbl { color: var(--color-text-muted); font-size: 0.9rem; }
+
+/* ——— Sections / panneaux ——— */
+.panel { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 22px; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; }
+.panel-head h3 { margin: 0; font-size: 1.3rem; }
+.panel-body { padding: 6px 0; }
+
+/* ——— Tables ——— */
+.table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.table th { text-align: left; font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-muted); font-weight: 700; padding: 12px 22px; border-bottom: 1px solid var(--color-border); }
+.table td { padding: 14px 22px; border-bottom: 1px solid var(--creme-200); vertical-align: top; }
+.table tr:last-child td { border-bottom: none; }
+.table tr:hover td { background: var(--creme-50); }
+.table .col-actions { text-align: right; white-space: nowrap; }
+.cell-title { font-weight: 600; color: var(--ardoise-800); }
+.cell-sub { color: var(--color-text-muted); font-size: 0.85rem; }
+.muted { color: var(--color-text-muted); }
+
+/* ——— Boutons d'action en ligne ——— */
+.icon-btn {
+  background: none; border: 1px solid var(--color-border); border-radius: var(--radius-sm); cursor: pointer;
+  padding: 6px 8px; color: var(--ardoise-600); margin-left: 4px; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.icon-btn svg { width: 16px; height: 16px; display: block; }
+.icon-btn:hover { background: var(--ardoise-100); }
+.icon-btn.danger:hover { background: var(--brique-200); color: var(--brique-700); border-color: var(--brique-300); }
+.icon-btn.ok:hover { background: var(--olive-200); color: var(--olive-700); border-color: var(--olive-300); }
+
+.empty-state { padding: 48px 22px; text-align: center; color: var(--color-text-muted); }
+
+/* ——— Modale ——— */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(26, 43, 52, 0.55);
+  display: flex; align-items: flex-start; justify-content: center; padding: 40px 20px; z-index: 100; overflow-y: auto;
+}
+.modal-card { width: 100%; max-width: 540px; padding: var(--space-7); margin: auto; }
+.modal-card h3 { margin: 0 0 18px; font-size: 1.5rem; }
+.modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+
+/* ——— Toast ——— */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: var(--ardoise-800); color: var(--creme-50); padding: 12px 20px;
+  border-radius: var(--radius-pill); box-shadow: var(--shadow-lg); font-size: 0.92rem; z-index: 200;
+  opacity: 0; transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+.toast.err { background: var(--brique-600); }
+
+/* ——— Messages dépliables ——— */
+.msg-item { padding: 16px 22px; border-bottom: 1px solid var(--creme-200); }
+.msg-item:last-child { border-bottom: none; }
+.msg-item.unread { background: var(--creme-100); }
+.msg-head { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.msg-head .who { font-weight: 600; color: var(--ardoise-800); }
+.msg-head .when { margin-left: auto; color: var(--color-text-faint); font-size: 0.82rem; white-space: nowrap; }
+.msg-body { margin-top: 10px; color: var(--encre-soft); white-space: pre-wrap; }
+.msg-meta { font-size: 0.85rem; color: var(--color-text-muted); margin-top: 6px; }
+
+.form-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+
+/* ——— Responsive ——— */
+@media (max-width: 900px) {
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .dash { grid-template-columns: 1fr; }
+  .dash-side {
+    position: fixed; left: 0; top: 0; bottom: 0; width: 264px; z-index: 50;
+    transform: translateX(-100%); transition: transform var(--dur-base) var(--ease-out);
+  }
+  .dash-side.is-open { transform: translateX(0); }
+  #dash-side-toggle { display: inline-flex; }
+  .dash-content { padding: 20px; }
+  .table th:nth-child(3), .table td:nth-child(3) { display: none; }
+  .form-grid2 { grid-template-columns: 1fr; }
+}

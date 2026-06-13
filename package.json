@@ -1,0 +1,18 @@
+{
+  "name": "amisdemontety",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Site de l'association Les Amis de Montety — Cloudflare Workers + D1",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create amisdemontety",
+    "db:schema": "wrangler d1 execute amisdemontety --remote --file=./schema.sql",
+    "db:seed": "wrangler d1 execute amisdemontety --remote --file=./seed.sql",
+    "db:schema:local": "wrangler d1 execute amisdemontety --local --file=./schema.sql",
+    "db:seed:local": "wrangler d1 execute amisdemontety --local --file=./seed.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^4.20.0"
+  }
+}

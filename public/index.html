@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Les Amis de Montety — Association de quartier, Toulon</title>
+<meta name="description" content="Les Amis de Montety : association de quartier intergénérationnelle à Toulon. On se connaît, on se retrouve, on s'entraide. Tous les âges, un même quartier." />
+<link rel="icon" href="assets/logo-montety.png" />
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/site.css" />
+</head>
+<body data-page="accueil">
+
+<header class="site-header" data-header></header>
+
+<main>
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero__inner">
+      <div>
+        <span class="eyebrow">Association de quartier · Toulon</span>
+        <h1>Le quartier de Montety<br/>reprend vie</h1>
+        <p>On se connaît, on se retrouve, on s'entraide. Des cafés partagés aux ateliers qui réunissent petits et grands — venez faire vivre le quartier avec nous.</p>
+        <div class="hero__actions">
+          <a class="btn btn--accent btn--lg" href="adherer.html">Rejoindre l'association</a>
+          <a class="btn btn--secondary btn--lg" href="agenda.html">Voir l'agenda</a>
+        </div>
+      </div>
+      <div>
+        <div class="medallion">
+          <img src="assets/logo-montety.png" alt="Les Amis de Montety" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Mission -->
+  <section class="container section">
+    <div class="section-head">
+      <span class="eyebrow">Notre raison d'être</span>
+      <h2 style="max-width:20ch">Relier les générations, tout simplement</h2>
+    </div>
+    <div class="grid-3">
+      <article class="card mission-card">
+        <div class="pastille"><span data-lucide="heart-handshake"></span></div>
+        <h3>L'entraide</h3>
+        <p>Un coup de main pour les courses, un trajet, un service entre voisins.</p>
+      </article>
+      <article class="card mission-card">
+        <div class="pastille"><span data-lucide="users"></span></div>
+        <h3>L'intergénérationnel</h3>
+        <p>Les anciens transmettent, les enfants animent — chacun apprend de l'autre.</p>
+      </article>
+      <article class="card mission-card">
+        <div class="pastille"><span data-lucide="coffee"></span></div>
+        <h3>Les moments partagés</h3>
+        <p>Cafés, repas de rue, ateliers : des occasions simples de se retrouver.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- Aperçu agenda -->
+  <section style="background: var(--creme-100)">
+    <div class="container section">
+      <div class="section-head section-head--split">
+        <div>
+          <span class="eyebrow">Prochains rendez-vous</span>
+          <h2>L'agenda du quartier</h2>
+        </div>
+        <a class="btn btn--secondary btn--md" href="agenda.html">Tout l'agenda</a>
+      </div>
+      <div class="grid-3" id="home-events" data-events-grid data-limit="3">
+        <p style="color:var(--color-text-muted)">Chargement de l'agenda…</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bandeau adhésion / don -->
+  <section class="join-band">
+    <div class="join-band__inner">
+      <div>
+        <h2>Envie de donner un coup de main&nbsp;?</h2>
+        <p>L'adhésion est libre. Rejoignez les bénévoles, ou soutenez le quartier par un don.</p>
+      </div>
+      <div class="hero__actions">
+        <a class="btn btn--accent btn--lg" href="adherer.html">Adhérer à l'association</a>
+        <a class="btn btn--ghost btn--lg" href="don.html" style="color:var(--creme-50)">Faire un don</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer" data-footer></footer>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="js/main.js"></script>
+<script src="js/agenda.js"></script>
+</body>
+</html>

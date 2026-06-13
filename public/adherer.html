@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Adhérer — Les Amis de Montety</title>
+<meta name="description" content="Rejoignez les Amis de Montety. L'adhésion est libre et ouverte à tous les habitants du quartier de Montety, Toulon." />
+<link rel="icon" href="assets/logo-montety.png" />
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/site.css" />
+</head>
+<body data-page="adherer">
+
+<header class="site-header" data-header></header>
+
+<main>
+  <div class="container" style="padding-top:64px; padding-bottom:96px">
+    <div class="two-col">
+      <div>
+        <span class="eyebrow">Adhésion</span>
+        <h1 style="font-weight:500; font-size:3rem; letter-spacing:-0.025em; margin:10px 0 16px">Rejoignez<br/>les Amis de Montety</h1>
+        <p class="lead" style="max-width:42ch">
+          L'adhésion est libre et ouverte à tous les habitants du quartier. Elle vous donne accès à
+          tous nos rendez-vous et vous permet de proposer vos propres idées.
+        </p>
+        <div class="checklist">
+          <div class="row"><span data-lucide="check-circle-2"></span><span>Participer aux ateliers et événements</span></div>
+          <div class="row"><span data-lucide="check-circle-2"></span><span>Proposer un coup de main ou une idée</span></div>
+          <div class="row"><span data-lucide="check-circle-2"></span><span>Recevoir l'agenda chaque mois</span></div>
+        </div>
+
+        <div class="helloasso-cta">
+          <a class="btn btn--accent btn--lg" href="don.html" data-helloasso="membership" target="_blank" rel="noopener">
+            <span data-lucide="hand-heart"></span> Adhérer en ligne
+          </a>
+          <p class="hint" style="margin-top:10px">Paiement sécurisé via HelloAsso · reçu fiscal automatique. Ou remplissez le formulaire ci-contre et on revient vers vous.</p>
+        </div>
+
+        <p class="script" style="font-size:1.7rem; color:var(--brique-600); margin-top:28px">
+          Au plaisir de vous voir au quartier&nbsp;!
+        </p>
+      </div>
+
+      <div class="card" style="padding: var(--space-7)">
+        <h2 style="font-size:1.5rem; margin:0 0 6px">Laissez-nous vos coordonnées</h2>
+        <p style="color:var(--color-text-muted); margin:0 0 20px; font-size:0.95rem">On vous recontacte pour finaliser votre adhésion.</p>
+        <div id="adhere-success" class="form-success" hidden>
+          <div class="pop"><span data-lucide="party-popper"></span></div>
+          <h3 style="font-size:1.7rem; margin:0 0 8px">Bienvenue&nbsp;!</h3>
+          <p style="color:var(--color-text-muted); margin:0 0 24px">Votre demande est enregistrée. On vous écrit très vite pour la suite.</p>
+          <button class="btn btn--secondary btn--md" type="button" id="adhere-reset">Nouvelle adhésion</button>
+        </div>
+
+        <form id="adhere-form" novalidate>
+          <div class="field-row">
+            <div class="field">
+              <label for="prenom">Prénom</label>
+              <input id="prenom" name="prenom" placeholder="Marie" required />
+            </div>
+            <div class="field">
+              <label for="nom">Nom</label>
+              <input id="nom" name="nom" placeholder="Dupont" required />
+            </div>
+          </div>
+          <div class="field">
+            <label for="email">E-mail</label>
+            <input id="email" name="email" type="email" placeholder="marie@exemple.fr" required />
+            <div class="hint">Pour recevoir l'agenda du quartier.</div>
+          </div>
+          <div class="field">
+            <label for="rue">Rue du quartier</label>
+            <input id="rue" name="rue" placeholder="Rue de Montety" />
+          </div>
+          <div class="field" style="margin-bottom:24px">
+            <label for="mot">Un mot pour nous (facultatif)</label>
+            <textarea id="mot" name="mot" placeholder="J'aimerais aider pour…"></textarea>
+          </div>
+          <button class="btn btn--accent btn--lg btn--full" type="submit" id="adhere-submit">Envoyer ma demande</button>
+          <p class="form-note">Adhésion à prix libre · sans engagement</p>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer" data-footer></footer>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="js/main.js"></script>
+<script src="js/config.js"></script>
+<script src="js/adherer.js"></script>
+</body>
+</html>
