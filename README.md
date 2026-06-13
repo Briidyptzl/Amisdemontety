@@ -28,24 +28,23 @@ refondu selon la charte graphique et hébergé sur **Cloudflare** (Worker + base
 
 ---
 
-## ✅ Déjà fait
-- Base **D1 `amisdemontety`** créée (région Europe de l'Ouest), schéma + agenda d'exemple chargés.
-- **Compte administrateur** créé et **secret de session** généré (stocké dans la base, hors dépôt).
-- Code poussé sur la branche **`main`** de ce dépôt. L'ancien site est conservé sur **`master`**
-  (et `ancien-site`).
+## ✅ En ligne
+Le site est **déployé et fonctionnel** : **https://amisdemontety.briidyb.workers.dev**
+- Base **D1 `amisdemontety`** créée, schéma + agenda d'exemple chargés.
+- **Compte administrateur** créé, **secret de session** généré (dans la base, hors dépôt).
+- Worker déployé via wrangler, base D1 reliée, API et admin vérifiés de bout en bout.
+- Code sur la branche **`main`**. Ancien site conservé sur **`master`** (et `ancien-site`).
 
-## ▶️ Mettre le site en ligne (sans rien installer)
-
-Le Worker doit être déployé une fois. Le plus simple, via le **dashboard Cloudflare** :
-
-1. **Workers & Pages** → **Create** → onglet **Import a repository** → connectez GitHub et
-   choisissez **`Briidyptzl/Amisdemontety`**, branche **`main`**.
-2. Cloudflare lit `wrangler.toml` (le binding D1 est déjà configuré) et déploie. À chaque `git push`
-   sur `main`, le site se redéploie automatiquement.
-3. Le site est en ligne sur `https://amisdemontety.<votre-sous-domaine>.workers.dev`, puis sur
-   votre nom de domaine (onglet **Custom Domains** du Worker).
-
-> Variante en ligne de commande (nécessite Node.js) : `npm install` puis `npx wrangler deploy`.
+## ▶️ Redéployer après une modification
+Depuis ce dossier, avec un jeton API « Edit Cloudflare Workers » :
+```bash
+set CLOUDFLARE_API_TOKEN=<votre-jeton>   # PowerShell : $env:CLOUDFLARE_API_TOKEN="..."
+wrangler deploy
+```
+> Option « auto » : connecter le dépôt à **Cloudflare → Workers & Pages → Import a repository**
+> (branche `main`) pour un redéploiement à chaque `git push`.
+>
+> Un domaine personnalisé s'ajoute dans l'onglet **Custom Domains** du Worker.
 
 ## 🔑 Se connecter à l'administration
 - Adresse : `…/admin.html`
