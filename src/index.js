@@ -196,10 +196,16 @@ async function handleApi(request, env, url) {
   // Agenda public
   if (path === '/api/events' && method === 'GET') {
     const { results } = await env.DB.prepare(
-      `SELECT id, title, cat, tone, free, "when", descr, location, starts_at
-         FROM events WHERE published = 1
+      `SELECT id, title, cat, tone, free, "when", descr, location, starts_at, recur
+         FROM events WHERE published = 1 AND reserved = 0
         ORDER BY (starts_at IS NULL), starts_at ASC, id ASC`).all();
     return json(results || []);
+  }
+  // Export iCalendar (agenda public, hors événements réservés)
+  if (path === '/api/events.ics' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT * FROM events WHERE published = 1 AND reserved = 0 AND starts_at IS NOT NULL`).all();
+    return icsResponse(results || [], 'Agenda — Les Amis de Montety');
   }
 
   // Message de contact
@@ -424,16 +430,22 @@ async function handleAdmin(request, env, url, method, session) {
       `SELECT * FROM events ORDER BY (starts_at IS NULL), starts_at ASC, id ASC`).all();
     return json(results || []);
   }
+  // Export iCalendar admin (inclut les événements réservés)
+  if (path === '/api/admin/events.ics' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT * FROM events WHERE starts_at IS NOT NULL`).all();
+    return icsResponse(results || [], 'Agenda complet — Les Amis de Montety');
+  }
   if (path === '/api/admin/events' && method === 'POST') {
     const b = await request.json().catch(() => ({}));
     const err = validateEvent(b);
     if (err) return json({ error: err }, 400);
     const r = await env.DB.prepare(
-      `INSERT INTO events (title, cat, tone, free, "when", descr, location, starts_at, published)
-       VALUES (?,?,?,?,?,?,?,?,?)`).bind(
+      `INSERT INTO events (title, cat, tone, free, "when", descr, location, starts_at, published, reserved, recur)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(
       clean(b.title, 200), clean(b.cat, 40), clean(b.tone, 20) || null,
       b.free ? 1 : 0, clean(b.when, 80), clean(b.descr, 2000), clean(b.location, 200) || null,
-      clean(b.starts_at, 40) || null, b.published === 0 ? 0 : 1).run();
+      clean(b.starts_at, 40) || null, b.published === 0 ? 0 : 1, b.reserved ? 1 : 0,
+      ['weekly', 'monthly'].includes(b.recur) ? b.recur : null).run();
     return json({ ok: true, id: r.meta.last_row_id });
   }
   const evMatch = path.match(/^\/api\/admin\/events\/(\d+)$/);
@@ -443,10 +455,11 @@ async function handleAdmin(request, env, url, method, session) {
     const err = validateEvent(b);
     if (err) return json({ error: err }, 400);
     await env.DB.prepare(
-      `UPDATE events SET title=?, cat=?, tone=?, free=?, "when"=?, descr=?, location=?, starts_at=?, published=? WHERE id=?`)
+      `UPDATE events SET title=?, cat=?, tone=?, free=?, "when"=?, descr=?, location=?, starts_at=?, published=?, reserved=?, recur=? WHERE id=?`)
       .bind(clean(b.title, 200), clean(b.cat, 40), clean(b.tone, 20) || null, b.free ? 1 : 0,
         clean(b.when, 80), clean(b.descr, 2000), clean(b.location, 200) || null,
-        clean(b.starts_at, 40) || null, b.published === 0 ? 0 : 1, id).run();
+        clean(b.starts_at, 40) || null, b.published === 0 ? 0 : 1, b.reserved ? 1 : 0,
+        ['weekly', 'monthly'].includes(b.recur) ? b.recur : null, id).run();
     return json({ ok: true });
   }
   if (evMatch && method === 'DELETE') {
@@ -709,4 +722,54 @@ function validateEvent(b) {
   if (!clean(b.title)) return 'Le titre est requis.';
   if (!clean(b.cat)) return 'La catégorie est requise.';
   return null;
+}
+
+/* ----------------------------- export iCalendar ----------------------------- */
+function pad2(n) { return String(n).padStart(2, '0'); }
+function icsDate(dt) {
+  const m = dt.length > 10
+    ? dt.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/)
+    : dt.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return dt.replace(/[-:T]/g, '');
+  return dt.length > 10 ? `${m[1]}${m[2]}${m[3]}T${m[4]}${m[5]}00` : `${m[1]}${m[2]}${m[3]}`;
+}
+function icsWeekday(dt) {
+  const d = new Date(dt.length <= 10 ? dt + 'T00:00:00' : dt + ':00');
+  return ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][d.getDay()];
+}
+function icsRrule(ev) {
+  if (ev.recur === 'weekly') return `RRULE:FREQ=WEEKLY;BYDAY=${icsWeekday(ev.starts_at)}`;
+  if (ev.recur === 'monthly') {
+    const nth = Math.ceil(parseInt(ev.starts_at.slice(8, 10), 10) / 7);
+    return `RRULE:FREQ=MONTHLY;BYDAY=${nth}${icsWeekday(ev.starts_at)}`;
+  }
+  return null;
+}
+function icsEscape(s) {
+  return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+}
+function addHours(dt, h) {
+  const d = new Date(dt + ':00'); d.setHours(d.getHours() + h);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+function icsResponse(events, name) {
+  const n = new Date();
+  const stamp = `${n.getUTCFullYear()}${pad2(n.getUTCMonth() + 1)}${pad2(n.getUTCDate())}T${pad2(n.getUTCHours())}${pad2(n.getUTCMinutes())}${pad2(n.getUTCSeconds())}Z`;
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Les Amis de Montety//FR', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:${icsEscape(name)}`];
+  for (const ev of events) {
+    if (!ev.starts_at) continue;
+    const hasTime = ev.starts_at.length > 10;
+    L.push('BEGIN:VEVENT', `UID:montety-${ev.id}@lesamisdemontety.com`, `DTSTAMP:${stamp}`);
+    if (hasTime) { L.push(`DTSTART:${icsDate(ev.starts_at)}`, `DTEND:${icsDate(addHours(ev.starts_at, 2))}`); }
+    else { L.push(`DTSTART;VALUE=DATE:${icsDate(ev.starts_at)}`); }
+    const rr = icsRrule(ev); if (rr) L.push(rr);
+    L.push(`SUMMARY:${icsEscape(ev.title)}`);
+    if (ev.descr) L.push(`DESCRIPTION:${icsEscape(ev.descr)}`);
+    if (ev.location) L.push(`LOCATION:${icsEscape(ev.location)}`);
+    L.push('END:VEVENT');
+  }
+  L.push('END:VCALENDAR');
+  return new Response(L.join('\r\n'), {
+    headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'attachment; filename="agenda-montety.ics"' },
+  });
 }

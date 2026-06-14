@@ -171,35 +171,84 @@ async function renderDashboard() {
 }
 
 /* ----------------------------- Agenda (CRUD) ----------------------------- */
+let ADMIN_EVENTS = [], EV_VIEW = 'liste', CAL_REF = new Date();
+const DOW_LBL = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const MONTH_LBL = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
 async function renderEvents() {
   const c = $('#dash-content');
   c.innerHTML = '<p class="muted">Chargement…</p>';
-  const evs = await api('/admin/events');
+  ADMIN_EVENTS = await api('/admin/events');
+  drawEvents();
+}
+function drawEvents() {
+  const c = $('#dash-content');
+  const tab = (v, lbl) => `<button class="seg-btn ${EV_VIEW === v ? 'is-active' : ''}" data-view="${v}">${lbl}</button>`;
+  const nav = (EV_VIEW === 'liste') ? '' : `
+    <div class="cal-nav">
+      <button class="icon-btn" data-cal="prev"><span data-lucide="chevron-left"></span></button>
+      <button class="btn btn--ghost btn--sm" data-cal="today">Aujourd'hui</button>
+      <button class="icon-btn" data-cal="next"><span data-lucide="chevron-right"></span></button>
+      <span class="cal-title">${calTitle()}</span>
+    </div>`;
   c.innerHTML = `
     <div class="panel">
-      <div class="panel-head">
-        <h3>Événements (${evs.length})</h3>
-        <button class="btn btn--accent btn--sm" id="add-event"><span data-lucide="plus"></span> Ajouter un événement</button>
+      <div class="panel-head" style="gap:12px">
+        <div class="seg">${tab('liste', 'Liste')}${tab('semaine', 'Semaine')}${tab('mois', 'Mois')}</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap">
+          <a class="btn btn--secondary btn--sm" href="/api/admin/events.ics" title="Télécharger pour votre agenda"><span data-lucide="calendar-arrow-down"></span> Exporter</a>
+          <button class="btn btn--accent btn--sm" id="add-event"><span data-lucide="plus"></span> Ajouter</button>
+        </div>
       </div>
-      <div class="panel-body">
-        ${evs.length ? `<table class="table">
-          <thead><tr><th>Titre</th><th>Catégorie</th><th>Quand</th><th>État</th><th class="col-actions">Actions</th></tr></thead>
-          <tbody>${evs.map(eventRow).join('')}</tbody>
-        </table>` : `<div class="empty-state">Aucun événement. Cliquez sur « Ajouter un événement ».</div>`}
-      </div>
+      ${nav}
+      <div class="panel-body">${EV_VIEW === 'liste' ? listView() : EV_VIEW === 'semaine' ? weekView() : monthView()}</div>
     </div>`;
   $('#add-event').addEventListener('click', () => eventModal());
-  $$('[data-edit]', c).forEach(b => b.addEventListener('click', () => eventModal(evs.find(e => e.id == b.dataset.edit))));
-  $$('[data-del]', c).forEach(b => b.addEventListener('click', () => deleteEvent(b.dataset.del)));
-  $$('[data-pub]', c).forEach(b => b.addEventListener('click', () => togglePublish(evs.find(e => e.id == b.dataset.pub))));
+  $$('.seg-btn', c).forEach(b => b.addEventListener('click', () => { EV_VIEW = b.dataset.view; drawEvents(); }));
+  $$('[data-cal]', c).forEach(b => b.addEventListener('click', () => moveCal(b.dataset.cal)));
+  bindEventActions(c);
   icons();
 }
+function bindEventActions(c) {
+  $$('[data-edit]', c).forEach(b => b.addEventListener('click', () => eventModal(ADMIN_EVENTS.find(e => e.id == b.dataset.edit))));
+  $$('[data-del]', c).forEach(b => b.addEventListener('click', () => deleteEvent(b.dataset.del)));
+  $$('[data-pub]', c).forEach(b => b.addEventListener('click', () => togglePublish(ADMIN_EVENTS.find(e => e.id == b.dataset.pub))));
+  $$('[data-occ]', c).forEach(b => b.addEventListener('click', () => eventModal(ADMIN_EVENTS.find(e => e.id == b.dataset.occ))));
+}
+function listView() {
+  const evs = ADMIN_EVENTS;
+  return evs.length ? `<table class="table">
+    <thead><tr><th>Titre</th><th>Catégorie</th><th>Quand</th><th>État</th><th class="col-actions">Actions</th></tr></thead>
+    <tbody>${evs.map(eventRow).join('')}</tbody></table>`
+    : `<div class="empty-state">Aucun événement. Cliquez sur « Ajouter ».</div>`;
+}
+function moveCal(dir) {
+  if (dir === 'today') CAL_REF = new Date();
+  else { const step = EV_VIEW === 'semaine' ? 7 : 0; const d = new Date(CAL_REF);
+    if (EV_VIEW === 'semaine') d.setDate(d.getDate() + (dir === 'next' ? 7 : -7));
+    else d.setMonth(d.getMonth() + (dir === 'next' ? 1 : -1));
+    CAL_REF = d; }
+  drawEvents();
+}
+function calTitle() {
+  if (EV_VIEW === 'semaine') { const { start, end } = weekRange(CAL_REF);
+    const e = new Date(end); e.setDate(e.getDate() - 1);
+    return `${start.getDate()} ${MONTH_LBL[start.getMonth()]} – ${e.getDate()} ${MONTH_LBL[e.getMonth()]} ${e.getFullYear()}`; }
+  return `${MONTH_LBL[CAL_REF.getMonth()]} ${CAL_REF.getFullYear()}`;
+}
+function weekRange(ref) {
+  const start = new Date(ref); const dow = (start.getDay() + 6) % 7; // Lundi=0
+  start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - dow);
+  const end = new Date(start); end.setDate(start.getDate() + 7);
+  return { start, end };
+}
 function eventRow(e) {
+  const recurLbl = e.recur === 'weekly' ? ' · chaque semaine' : e.recur === 'monthly' ? ' · chaque mois' : '';
   return `<tr>
     <td><div class="cell-title">${esc(e.title)}</div><div class="cell-sub">${esc(e.descr || '').slice(0, 60)}</div></td>
     <td><span class="badge badge--${esc(e.tone || TONE_BY_CAT[e.cat] || 'neutral')}">${esc(e.cat)}</span>${e.free ? ' <span class="badge badge--olive badge--solid">Gratuit</span>' : ''}</td>
-    <td class="muted">${esc(e.when || fmtDate(e.starts_at))}</td>
-    <td>${e.published ? '<span class="badge badge--olive">Publié</span>' : '<span class="badge badge--neutral">Brouillon</span>'}</td>
+    <td class="muted">${esc(e.when || fmtDate(e.starts_at))}${recurLbl}</td>
+    <td>${e.published ? '<span class="badge badge--olive">Publié</span>' : '<span class="badge badge--neutral">Brouillon</span>'}${e.reserved ? ' <span class="badge badge--brique">Réservé</span>' : ''}</td>
     <td class="col-actions">
       <button class="icon-btn" data-pub="${e.id}" title="${e.published ? 'Dépublier' : 'Publier'}"><span data-lucide="${e.published ? 'eye-off' : 'eye'}"></span></button>
       <button class="icon-btn" data-edit="${e.id}" title="Modifier"><span data-lucide="pencil"></span></button>
@@ -221,10 +270,22 @@ function eventModal(ev) {
         <div class="field"><label>Date/heure (tri, facultatif)</label><input name="starts_at" type="datetime-local" value="${esc((e.starts_at || '').slice(0, 16))}" /></div>
         <div class="field"><label>Lieu</label><input name="location" value="${esc(e.location || '')}" placeholder="Place de Montety" /></div>
       </div>
+      <div class="form-grid2">
+        <div class="field"><label>Récurrence</label>
+          <select name="recur">
+            <option value="" ${!e.recur ? 'selected' : ''}>Aucune (une seule date)</option>
+            <option value="weekly" ${e.recur === 'weekly' ? 'selected' : ''}>Chaque semaine</option>
+            <option value="monthly" ${e.recur === 'monthly' ? 'selected' : ''}>Chaque mois</option>
+          </select>
+          <div class="hint">Se répète à partir de la date ci-dessus.</div>
+        </div>
+        <div class="field"></div>
+      </div>
       <div class="field"><label>Description</label><textarea name="descr">${esc(e.descr || '')}</textarea></div>
-      <div class="field" style="display:flex; gap:24px; align-items:center">
+      <div class="field" style="display:flex; gap:24px; align-items:center; flex-wrap:wrap">
         <label style="display:flex; align-items:center; gap:8px; margin:0"><input type="checkbox" name="free" ${e.free ? 'checked' : ''} style="width:auto"/> Gratuit</label>
         <label style="display:flex; align-items:center; gap:8px; margin:0"><input type="checkbox" name="published" ${e.published === 0 ? '' : 'checked'} style="width:auto"/> Publié</label>
+        <label style="display:flex; align-items:center; gap:8px; margin:0" title="Visible uniquement dans l'administration"><input type="checkbox" name="reserved" ${e.reserved ? 'checked' : ''} style="width:auto"/> Réservé (privé)</label>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button>
@@ -240,6 +301,7 @@ function eventModal(ev) {
       when: f.when.value.trim(), starts_at: f.starts_at.value || null,
       location: f.location.value.trim(), descr: f.descr.value.trim(),
       free: f.free.checked, published: f.published.checked ? 1 : 0,
+      reserved: f.reserved.checked ? 1 : 0, recur: f.recur.value || null,
     };
     try {
       if (ev) await api('/admin/events/' + ev.id, { method: 'PUT', body: JSON.stringify(payload) });
@@ -256,6 +318,83 @@ async function deleteEvent(id) {
 async function togglePublish(e) {
   try { await api('/admin/events/' + e.id, { method: 'PUT', body: JSON.stringify({ ...e, free: !!e.free, published: e.published ? 0 : 1 }) }); renderEvents(); }
   catch (ex) { toast(ex.message, true); }
+}
+
+/* ----- vues calendrier ----- */
+function pad2a(n) { return String(n).padStart(2, '0'); }
+function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+function nthWeekdayOfMonth(y, mon, dow, nth, h, min) {
+  const first = new Date(y, mon, 1);
+  const offset = (dow - first.getDay() + 7) % 7;
+  const day = 1 + offset + (nth - 1) * 7;
+  const d = new Date(y, mon, day, h || 0, min || 0);
+  return d.getMonth() === mon ? d : null;
+}
+function expandOccurrences(events, rangeStart, rangeEnd) {
+  const occ = [];
+  for (const e of events) {
+    if (!e.starts_at) continue;
+    const base = new Date(e.starts_at.length <= 10 ? e.starts_at + 'T00:00' : e.starts_at);
+    if (isNaN(base)) continue;
+    if (!e.recur) {
+      if (base >= rangeStart && base < rangeEnd) occ.push({ ev: e, date: base });
+    } else if (e.recur === 'weekly') {
+      let d = new Date(base);
+      while (d < rangeStart) d.setDate(d.getDate() + 7);
+      while (d < rangeEnd) { if (d >= base) occ.push({ ev: e, date: new Date(d) }); d.setDate(d.getDate() + 7); }
+    } else if (e.recur === 'monthly') {
+      const nth = Math.ceil(base.getDate() / 7), dow = base.getDay();
+      let m = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
+      while (m < rangeEnd) {
+        const d = nthWeekdayOfMonth(m.getFullYear(), m.getMonth(), dow, nth, base.getHours(), base.getMinutes());
+        if (d && d >= rangeStart && d < rangeEnd && d >= base) occ.push({ ev: e, date: d });
+        m.setMonth(m.getMonth() + 1);
+      }
+    }
+  }
+  return occ.sort((a, b) => a.date - b.date);
+}
+function occChip(o) {
+  const e = o.ev, tone = e.tone || TONE_BY_CAT[e.cat] || 'ardoise';
+  const time = (e.starts_at && e.starts_at.length > 10) ? `<b>${pad2a(o.date.getHours())}:${pad2a(o.date.getMinutes())}</b> ` : '';
+  const lock = e.reserved ? '<span data-lucide="lock"></span> ' : '';
+  return `<button class="cal-chip cal-chip--${tone} ${e.published ? '' : 'is-draft'}" data-occ="${e.id}" title="${esc(e.title)}">${time}${lock}${esc(e.title)}</button>`;
+}
+function undatedNote() {
+  const u = ADMIN_EVENTS.filter(e => !e.starts_at);
+  return u.length ? `<p class="hint" style="padding:12px 22px 0">${u.length} événement(s) sans date précise — visibles en vue Liste.</p>` : '';
+}
+function weekView() {
+  const { start, end } = weekRange(CAL_REF);
+  const occ = expandOccurrences(ADMIN_EVENTS, start, end);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  let cols = '';
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const dayOcc = occ.filter(o => sameDay(o.date, d));
+    cols += `<div class="cal-col ${d.getTime() === today.getTime() ? 'is-today' : ''}">
+      <div class="cal-col-head">${DOW_LBL[i]} ${d.getDate()}</div>
+      <div class="cal-col-body">${dayOcc.length ? dayOcc.map(occChip).join('') : '<span class="cal-empty">—</span>'}</div></div>`;
+  }
+  return `<div class="cal-scroll"><div class="cal-week">${cols}</div></div>${undatedNote()}`;
+}
+function monthView() {
+  const y = CAL_REF.getFullYear(), m = CAL_REF.getMonth();
+  const startDow = (new Date(y, m, 1).getDay() + 6) % 7;
+  const gridStart = new Date(y, m, 1 - startDow); gridStart.setHours(0, 0, 0, 0);
+  const gridEnd = new Date(gridStart); gridEnd.setDate(gridStart.getDate() + 42);
+  const occ = expandOccurrences(ADMIN_EVENTS, gridStart, gridEnd);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  let cells = '';
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(gridStart); d.setDate(gridStart.getDate() + i);
+    const dayOcc = occ.filter(o => sameDay(o.date, d));
+    cells += `<div class="cal-cell ${d.getMonth() !== m ? 'is-out' : ''} ${d.getTime() === today.getTime() ? 'is-today' : ''}">
+      <div class="cal-cell-day">${d.getDate()}</div>${dayOcc.map(occChip).join('')}</div>`;
+  }
+  return `<div class="cal-scroll"><div class="cal-month">
+    <div class="cal-month-head">${DOW_LBL.map(l => `<div>${l}</div>`).join('')}</div>
+    <div class="cal-grid">${cells}</div></div></div>${undatedNote()}`;
 }
 
 /* ----------------------------- Adhésions ----------------------------- */

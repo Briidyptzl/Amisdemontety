@@ -12,8 +12,10 @@ CREATE TABLE IF NOT EXISTS events (
   "when"     TEXT,                          -- libellé affiché (ex. "JEU. 18 JUIN · 15H")
   descr      TEXT,
   location   TEXT,
-  starts_at  TEXT,                          -- ISO 8601 (tri), facultatif
+  starts_at  TEXT,                          -- ISO 8601 (date d'ancrage / tri), facultatif
   published  INTEGER NOT NULL DEFAULT 1,    -- 0/1
+  reserved   INTEGER NOT NULL DEFAULT 0,    -- 1 = visible uniquement dans l'administration
+  recur      TEXT,                          -- null / 'weekly' / 'monthly'
   created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -97,6 +99,19 @@ CREATE TABLE IF NOT EXISTS merchants (
   pass_salt   TEXT NOT NULL,
   pass_iter   INTEGER NOT NULL DEFAULT 100000,
   active      INTEGER NOT NULL DEFAULT 1,
+  photo_key   TEXT,                          -- clé de l'image dans le KV MEDIA (/img/<clé>)
+  created_at  TEXT DEFAULT (datetime('now'))
+);
+
+-- Produits proposés par les commerçants (fiche détaillée)
+CREATE TABLE IF NOT EXISTS products (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  merchant_id INTEGER NOT NULL,
+  name        TEXT NOT NULL,
+  description TEXT,
+  price       TEXT,
+  photo_key   TEXT,
+  sort        INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT DEFAULT (datetime('now'))
 );
 
@@ -119,3 +134,4 @@ CREATE INDEX IF NOT EXISTS idx_memberships_status ON memberships (status, create
 CREATE INDEX IF NOT EXISTS idx_donations_date     ON donations (donated_at);
 CREATE INDEX IF NOT EXISTS idx_listings_status    ON listings (status, created_at);
 CREATE INDEX IF NOT EXISTS idx_mposts_merchant    ON merchant_posts (merchant_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_products_merchant   ON products (merchant_id, sort);
