@@ -133,6 +133,7 @@ function merchantCookie(token, maxAge) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname.startsWith('/img/')) return serveImage(env, url);
     if (url.pathname.startsWith('/api/')) {
       try {
         return await handleApi(request, env, url);
@@ -143,6 +144,34 @@ export default {
     return env.ASSETS.fetch(request);
   },
 };
+
+/* ----------------------------- images (KV) ----------------------------- */
+async function serveImage(env, url) {
+  const key = decodeURIComponent(url.pathname.slice('/img/'.length));
+  if (!key) return new Response('Not found', { status: 404 });
+  const { value, metadata } = await env.MEDIA.getWithMetadata(key, { type: 'arrayBuffer' });
+  if (!value) return new Response('Not found', { status: 404 });
+  return new Response(value, {
+    headers: {
+      'Content-Type': (metadata && metadata.ct) || 'application/octet-stream',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    },
+  });
+}
+async function handleUpload(request, env, prefix) {
+  const form = await request.formData().catch(() => null);
+  const file = form && form.get('file');
+  if (!file || typeof file === 'string') return json({ error: 'Aucun fichier reçu.' }, 400);
+  const type = file.type || '';
+  if (!/^image\/(jpeg|png|webp|gif)$/.test(type))
+    return json({ error: 'Format accepté : JPEG, PNG, WebP ou GIF.' }, 400);
+  const buf = await file.arrayBuffer();
+  if (buf.byteLength > 3 * 1024 * 1024) return json({ error: 'Image trop lourde (3 Mo maximum).' }, 400);
+  const ext = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' })[type];
+  const key = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  await env.MEDIA.put(key, buf, { metadata: { ct: type } });
+  return json({ ok: true, key, url: '/img/' + key });
+}
 
 async function handleApi(request, env, url) {
   const path = url.pathname;
@@ -226,8 +255,22 @@ async function handleApi(request, env, url) {
   // Commerçants — vitrine publique
   if (path === '/api/merchants' && method === 'GET') {
     const { results } = await env.DB.prepare(
-      `SELECT id, name, type, slug, description, address, phone FROM merchants WHERE active = 1 ORDER BY name`).all();
+      `SELECT id, name, type, slug, description, address, phone, photo_key FROM merchants WHERE active = 1 ORDER BY name`).all();
     return json(results || []);
+  }
+  // Fiche détaillée d'un commerçant (par identifiant)
+  const merPub = path.match(/^\/api\/merchants\/([a-z0-9-]+)$/);
+  if (merPub && method === 'GET') {
+    const m = await env.DB.prepare(
+      `SELECT id, name, type, slug, description, address, phone, photo_key FROM merchants WHERE slug = ? AND active = 1`)
+      .bind(merPub[1]).first();
+    if (!m) return json({ error: 'Commerçant introuvable' }, 404);
+    const products = (await env.DB.prepare(
+      `SELECT id, name, description, price, photo_key FROM products WHERE merchant_id = ? ORDER BY sort, id`).bind(m.id).all()).results || [];
+    const posts = (await env.DB.prepare(
+      `SELECT id, kind, title, body, price, available_until, created_at FROM merchant_posts
+        WHERE merchant_id = ? AND status = 'published' ORDER BY created_at DESC, id DESC`).bind(m.id).all()).results || [];
+    return json({ merchant: m, products, posts });
   }
   if (path === '/api/merchant-posts' && method === 'GET') {
     const { results } = await env.DB.prepare(
@@ -507,15 +550,18 @@ async function handleAdmin(request, env, url, method, session) {
       name, type, slug, clean(b.description, 1000), clean(b.address, 200), clean(b.phone, 40), hash, salt, iter).run();
     return json({ ok: true, id: r.meta.last_row_id, slug });
   }
+  if (path === '/api/admin/upload' && method === 'POST') {
+    return handleUpload(request, env, 'admin');
+  }
   const merMatch = path.match(/^\/api\/admin\/merchants\/(\d+)$/);
   if (merMatch && method === 'PUT') {
     const b = await request.json().catch(() => ({}));
     const name = clean(b.name, 120), type = clean(b.type, 40);
     if (!name || !type) return json({ error: 'Nom et type requis.' }, 400);
     await env.DB.prepare(
-      `UPDATE merchants SET name=?, type=?, description=?, address=?, phone=?, active=? WHERE id=?`).bind(
+      `UPDATE merchants SET name=?, type=?, description=?, address=?, phone=?, active=?, photo_key=COALESCE(?, photo_key) WHERE id=?`).bind(
       name, type, clean(b.description, 1000), clean(b.address, 200), clean(b.phone, 40),
-      b.active === 0 ? 0 : 1, Number(merMatch[1])).run();
+      b.active === 0 ? 0 : 1, b.photo_key === undefined ? null : (clean(b.photo_key, 200) || null), Number(merMatch[1])).run();
     return json({ ok: true });
   }
   if (merMatch && method === 'DELETE') {
@@ -563,7 +609,7 @@ async function handleMerchant(request, env, url, method, session) {
 
   if (path === '/api/merchant/me' && method === 'GET') {
     const m = await env.DB.prepare(
-      `SELECT id, name, type, slug, description, address, phone FROM merchants WHERE id = ?`).bind(mid).first();
+      `SELECT id, name, type, slug, description, address, phone, photo_key FROM merchants WHERE id = ?`).bind(mid).first();
     if (!m) return json({ error: 'Compte introuvable' }, 404);
     return json(m);
   }
@@ -601,6 +647,52 @@ async function handleMerchant(request, env, url, method, session) {
       .bind(await pbkdf2Hex(next, salt, iter), salt, iter, mid).run();
     return json({ ok: true });
   }
+
+  // Upload d'image (photo boutique ou produit)
+  if (path === '/api/merchant/upload' && method === 'POST') {
+    return handleUpload(request, env, 'm' + mid);
+  }
+  // Mise à jour de la fiche (description, coordonnées, photo)
+  if (path === '/api/merchant/profile' && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    await env.DB.prepare(
+      `UPDATE merchants SET description=?, address=?, phone=?, photo_key=COALESCE(?, photo_key) WHERE id=?`)
+      .bind(clean(b.description, 1000), clean(b.address, 200), clean(b.phone, 40),
+        b.photo_key === undefined ? null : (clean(b.photo_key, 200) || null), mid).run();
+    return json({ ok: true });
+  }
+  // Produits
+  if (path === '/api/merchant/products' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT * FROM products WHERE merchant_id = ? ORDER BY sort, id`).bind(mid).all();
+    return json(results || []);
+  }
+  if (path === '/api/merchant/products' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 120);
+    if (!name) return json({ error: 'Le nom du produit est requis.' }, 400);
+    await env.DB.prepare(
+      `INSERT INTO products (merchant_id, name, description, price, photo_key, sort) VALUES (?,?,?,?,?,?)`)
+      .bind(mid, name, clean(b.description, 1000), clean(b.price, 60) || null,
+        clean(b.photo_key, 200) || null, parseInt(b.sort, 10) || 0).run();
+    return json({ ok: true });
+  }
+  const prodMatch = path.match(/^\/api\/merchant\/products\/(\d+)$/);
+  if (prodMatch && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 120);
+    if (!name) return json({ error: 'Le nom du produit est requis.' }, 400);
+    await env.DB.prepare(
+      `UPDATE products SET name=?, description=?, price=?, photo_key=COALESCE(?, photo_key) WHERE id=? AND merchant_id=?`)
+      .bind(name, clean(b.description, 1000), clean(b.price, 60) || null,
+        b.photo_key === undefined ? null : (clean(b.photo_key, 200) || null), Number(prodMatch[1]), mid).run();
+    return json({ ok: true });
+  }
+  if (prodMatch && method === 'DELETE') {
+    await env.DB.prepare(`DELETE FROM products WHERE id=? AND merchant_id=?`).bind(Number(prodMatch[1]), mid).run();
+    return json({ ok: true });
+  }
+
   return json({ error: 'Route inconnue' }, 404);
 }
 

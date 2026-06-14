@@ -13,3 +13,8 @@ binding = "ASSETS"
 binding = "DB"
 database_name = "amisdemontety"
 database_id = "2b4a8cbd-e023-450f-b4ab-34eadd405ea7"
+
+# Stockage des photos (commerçants, produits)
+[[kv_namespaces]]
+binding = "MEDIA"
+id = "2a9317602c224de699665e13ba117b46"

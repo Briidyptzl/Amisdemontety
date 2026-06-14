@@ -59,7 +59,7 @@ function renderFooter() {
         </div>
         <div class="footer-col">
           <h4>Nous trouver</h4>
-          <p>Place de Montety, Toulon</p>
+          <a href="https://www.google.com/maps/search/?api=1&query=11%20boulevard%20Commandant%20Nicolas%2C%2083000%20Toulon" target="_blank" rel="noopener"><span data-lucide="map-pin"></span> 11 boulevard Commandant Nicolas, 83000 Toulon</a>
           <a href="mailto:bonjour@lesamisdemontety.com" data-contact-email>bonjour@lesamisdemontety.com</a>
           <a href="contact.html">Nous écrire</a>
           <div class="footer-script script">tous les âges, un même quartier</div>

@@ -320,6 +320,49 @@ img { max-width: 100%; display: block; }
 .m-own { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--creme-200); }
 .m-own:last-child { border-bottom: none; }
 
+/* Carte commerçant cliquable (vitrine) */
+a.m-card { padding: 0; overflow: hidden; text-decoration: none; color: inherit; display: flex; flex-direction: column; }
+.m-thumb { height: 160px; background: var(--creme-200); }
+.m-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.m-thumb--empty { display: flex; align-items: center; justify-content: center; color: var(--sable-400); }
+.m-thumb--empty svg { width: 40px; height: 40px; }
+.m-card-body { padding: var(--space-5); display: flex; flex-direction: column; flex: 1; }
+.m-card-body h3 { font-size: 1.3rem; color: var(--ardoise-800); margin: 10px 0 8px; }
+.m-see { margin-top: auto; padding-top: 12px; color: var(--brique-600); font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; gap: 6px; }
+.m-see svg { width: 16px; height: 16px; }
+
+/* Fiche détaillée */
+.back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--ardoise-600); text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+.back-link:hover { color: var(--brique-600); }
+.back-link svg { width: 16px; height: 16px; }
+.detail-hero { display: grid; grid-template-columns: 340px 1fr; gap: 40px; align-items: center; margin-top: 18px; }
+.detail-photo { border-radius: var(--radius-xl); overflow: hidden; aspect-ratio: 4/3; box-shadow: var(--shadow-md); background: var(--creme-200); }
+.detail-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.detail-photo--empty { display: flex; align-items: center; justify-content: center; color: var(--sable-400); }
+.detail-photo--empty svg { width: 64px; height: 64px; }
+.detail-info h1 { font-size: 2.6rem; letter-spacing: -0.02em; margin: 12px 0 0; }
+
+/* Produits */
+.prod-card { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.prod-photo { height: 170px; background: var(--creme-200); }
+.prod-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.prod-photo--empty { display: flex; align-items: center; justify-content: center; color: var(--sable-400); }
+.prod-photo--empty svg { width: 36px; height: 36px; }
+.prod-body { padding: 18px; }
+.prod-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.prod-head h3 { font-size: 1.15rem; color: var(--ardoise-800); margin: 0; }
+
+/* Espace commerçant : photo & produits */
+.boutique-row { display: flex; gap: 16px; align-items: center; }
+.boutique-photo { width: 96px; height: 96px; border-radius: var(--radius-md); object-fit: cover; background: var(--creme-200); flex: none; }
+.boutique-photo--empty { display: flex; align-items: center; justify-content: center; color: var(--sable-400); }
+.prod-mini { width: 44px; height: 44px; border-radius: var(--radius-sm); object-fit: cover; background: var(--creme-200); flex: none; }
+.prod-mini--empty { display: inline-flex; align-items: center; justify-content: center; color: var(--sable-400); }
+
+@media (max-width: 760px) {
+  .detail-hero { grid-template-columns: 1fr; gap: 24px; }
+}
+
 /* ——— Icônes Lucide ——— */
 .lucide, [data-lucide] svg { stroke-width: 1.8; }
 

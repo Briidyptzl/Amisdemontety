@@ -24,6 +24,13 @@ async function api(path, opts = {}) {
   if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
   return data;
 }
+async function adminUpload(file) {
+  const fd = new FormData(); fd.append('file', file);
+  const res = await fetch('/api/admin/upload', { method: 'POST', body: fd });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Envoi de l\'image impossible');
+  return d.key;
+}
 
 let toastTimer = null;
 function toast(msg, isErr = false) {
@@ -554,7 +561,10 @@ function merchantModal(m) {
         <div class="field"><label>Adresse</label><input name="address" value="${esc(e.address || '')}" placeholder="12 rue de Montety, Toulon" /></div>
         <div class="field"><label>Téléphone</label><input name="phone" value="${esc(e.phone || '')}" placeholder="04 94 00 00 00" /></div>
       </div>
-      ${m ? `<label style="display:flex; align-items:center; gap:8px; margin:4px 0 0"><input type="checkbox" name="active" ${e.active ? 'checked' : ''} style="width:auto" /> Compte actif</label>` : ''}
+      ${m ? `<div class="field" style="margin-top:14px"><label>Photo de la boutique</label>
+        ${e.photo_key ? `<img src="/img/${esc(e.photo_key)}" alt="" style="width:96px;height:96px;object-fit:cover;border-radius:12px;display:block;margin-bottom:8px" />` : ''}
+        <input type="file" name="photo" accept="image/*" /><div class="hint">JPEG, PNG ou WebP · 3 Mo max.</div></div>
+      <label style="display:flex; align-items:center; gap:8px; margin:4px 0 0"><input type="checkbox" name="active" ${e.active ? 'checked' : ''} style="width:auto" /> Compte actif</label>` : ''}
       <div class="modal-actions">
         <button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button>
         <button type="submit" class="btn btn--accent btn--md">${m ? 'Enregistrer' : 'Créer le compte'}</button>
@@ -569,6 +579,7 @@ function merchantModal(m) {
     try {
       if (m) {
         payload.active = f.active.checked ? 1 : 0;
+        if (f.photo && f.photo.files[0]) payload.photo_key = await adminUpload(f.photo.files[0]);
         await api('/admin/merchants/' + m.id, { method: 'PUT', body: JSON.stringify(payload) });
         closeModal(); toast('Commerçant enregistré'); renderAdminMerchants();
       } else {
