@@ -39,6 +39,10 @@ CREATE TABLE IF NOT EXISTS memberships (
   rue        TEXT,
   message    TEXT,
   status     TEXT NOT NULL DEFAULT 'pending', -- pending / accepted / declined
+  amount     REAL,                            -- montant de la cotisation
+  pay_method TEXT,                            -- especes / cheque / virement / helloasso / cb
+  paid       INTEGER NOT NULL DEFAULT 0,      -- 1 = encaissé (alimente la compta)
+  paid_at    TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
 

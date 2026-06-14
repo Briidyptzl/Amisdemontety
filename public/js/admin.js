@@ -115,12 +115,13 @@ async function init() {
 /* ----------------------------- Navigation des vues ----------------------------- */
 const VIEW_TITLES = {
   dashboard: 'Tableau de bord', events: 'Agenda', memberships: 'Adhésions',
-  messages: 'Messages', donations: 'Dons', listings: 'Entraide', merchants: 'Commerçants', settings: 'Réglages',
+  messages: 'Messages', donations: 'Dons', listings: 'Entraide', merchants: 'Commerçants',
+  admins: 'Administrateurs', settings: 'Réglages',
 };
 function switchView(view) {
   $$('.dash-nav__item').forEach(b => b.classList.toggle('is-active', b.dataset.view === view));
   $('#view-title').textContent = VIEW_TITLES[view] || '';
-  const render = { dashboard: renderDashboard, events: renderEvents, memberships: renderMemberships, messages: renderMessages, donations: renderDonations, listings: renderAdminListings, merchants: renderAdminMerchants, settings: renderSettings }[view];
+  const render = { dashboard: renderDashboard, events: renderEvents, memberships: renderMemberships, messages: renderMessages, donations: renderDonations, listings: renderAdminListings, merchants: renderAdminMerchants, admins: renderAdmins, settings: renderSettings }[view];
   if (render) render();
 }
 
@@ -407,28 +408,65 @@ async function renderMemberships() {
       <div class="panel-head"><h3>Demandes d'adhésion (${list.length})</h3></div>
       <div class="panel-body">
         ${list.length ? `<table class="table">
-          <thead><tr><th>Nom</th><th>Contact</th><th>Message</th><th>Statut</th><th class="col-actions">Actions</th></tr></thead>
+          <thead><tr><th>Nom</th><th>Contact</th><th>Paiement</th><th>Statut</th><th class="col-actions">Actions</th></tr></thead>
           <tbody>${list.map(memberRow).join('')}</tbody>
         </table>` : `<div class="empty-state">Aucune demande pour l'instant.</div>`}
       </div>
     </div>`;
   $$('[data-acc]', c).forEach(b => b.addEventListener('click', () => setMember(b.dataset.acc, 'accepted')));
   $$('[data-dec]', c).forEach(b => b.addEventListener('click', () => setMember(b.dataset.dec, 'declined')));
+  $$('[data-pay]', c).forEach(b => b.addEventListener('click', () => paymentModal(list.find(m => m.id == b.dataset.pay))));
   $$('[data-del]', c).forEach(b => b.addEventListener('click', () => delMember(b.dataset.del)));
   icons();
   refreshBadges();
 }
+const PAY_LBL = { especes: 'Espèces', cheque: 'Chèque', virement: 'Virement', helloasso: 'HelloAsso', cb: 'Carte' };
+function paymentModal(m) {
+  openModal(`
+    <h3>Paiement — ${esc(m.prenom)} ${esc(m.nom)}</h3>
+    <form id="pay-form">
+      <div class="form-grid2">
+        <div class="field"><label>Montant (€)</label><input name="amount" type="number" min="0" step="0.01" value="${m.amount != null ? esc(m.amount) : ''}" /></div>
+        <div class="field"><label>Moyen</label>
+          <select name="pay_method">
+            <option value="">—</option>
+            ${Object.entries(PAY_LBL).map(([k, v]) => `<option value="${k}" ${m.pay_method === k ? 'selected' : ''}>${v}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <label style="display:flex; align-items:center; gap:8px; margin:4px 0"><input type="checkbox" name="paid" ${m.paid ? 'checked' : ''} style="width:auto" /> Encaissé / payé</label>
+      <p class="hint">Les adhésions encaissées (espèces, chèque, virement…) alimentent automatiquement la comptabilité.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button>
+        <button type="submit" class="btn btn--accent btn--md">Enregistrer</button>
+      </div>
+    </form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#pay-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      await api('/admin/memberships/' + m.id, { method: 'PATCH', body: JSON.stringify({
+        amount: f.amount.value || null, pay_method: f.pay_method.value || null, paid: f.paid.checked ? 1 : 0 }) });
+      closeModal(); toast('Paiement enregistré'); renderMemberships();
+    } catch (ex) { toast(ex.message, true); }
+  });
+}
 function memberRow(m) {
   const badge = { pending: 'badge--ocre', accepted: 'badge--olive', declined: 'badge--brique' }[m.status] || 'badge--neutral';
   const label = { pending: 'En attente', accepted: 'Accepté', declined: 'Refusé' }[m.status] || m.status;
+  const pay = m.paid
+    ? `<span class="badge badge--olive badge--solid">${m.amount != null ? Number(m.amount).toLocaleString('fr-FR') + ' €' : 'Payé'}</span>${m.pay_method ? `<div class="cell-sub">${esc(PAY_LBL[m.pay_method] || m.pay_method)}</div>` : ''}`
+    : (m.amount != null ? `<span class="muted">${Number(m.amount).toLocaleString('fr-FR')} € — non encaissé</span>` : '<span class="cell-sub">—</span>');
   return `<tr>
-    <td><div class="cell-title">${esc(m.prenom)} ${esc(m.nom)}</div><div class="cell-sub">${esc(m.rue || '')}</div></td>
+    <td><div class="cell-title">${esc(m.prenom)} ${esc(m.nom)}</div><div class="cell-sub">${esc(m.rue || '')}</div>${m.message ? `<div class="cell-sub">${esc(m.message)}</div>` : ''}</td>
     <td><a href="mailto:${esc(m.email)}">${esc(m.email)}</a><div class="cell-sub">${fmtDateTime(m.created_at)}</div></td>
-    <td class="muted">${esc(m.message || '')}</td>
+    <td>${pay}</td>
     <td><span class="badge ${badge}">${esc(label)}</span></td>
     <td class="col-actions">
       <button class="icon-btn ok" data-acc="${m.id}" title="Accepter"><span data-lucide="check"></span></button>
       <button class="icon-btn" data-dec="${m.id}" title="Refuser"><span data-lucide="x"></span></button>
+      <button class="icon-btn" data-pay="${m.id}" title="Enregistrer le paiement"><span data-lucide="banknote"></span></button>
       <button class="icon-btn danger" data-del="${m.id}" title="Supprimer"><span data-lucide="trash-2"></span></button>
     </td></tr>`;
 }
@@ -762,6 +800,88 @@ async function setMPost(id, status) {
 async function delMPost(id) {
   if (!confirm('Supprimer cette annonce ?')) return;
   try { await api('/admin/merchant-posts/' + id, { method: 'DELETE' }); renderAdminMerchants(); }
+  catch (ex) { toast(ex.message, true); }
+}
+
+/* ----------------------------- Administrateurs ----------------------------- */
+async function renderAdmins() {
+  const c = $('#dash-content');
+  c.innerHTML = '<p class="muted">Chargement…</p>';
+  const list = await api('/admin/admins');
+  c.innerHTML = `
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Administrateurs (${list.length})</h3>
+        <button class="btn btn--accent btn--sm" id="add-admin"><span data-lucide="user-plus"></span> Ajouter un administrateur</button>
+      </div>
+      <div class="panel-body">
+        <table class="table">
+          <thead><tr><th>Nom</th><th>E-mail (identifiant)</th><th class="col-actions">Actions</th></tr></thead>
+          <tbody>${list.map(adminRow).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+    <p class="hint" style="margin-top:14px">Chaque administrateur peut se connecter avec son e-mail et son mot de passe, et changer son propre mot de passe dans Réglages.</p>`;
+  $('#add-admin').addEventListener('click', () => adminModal());
+  $$('[data-apw]', c).forEach(b => b.addEventListener('click', () => adminPwdModal(b.dataset.apw, b.dataset.name)));
+  $$('[data-adel]', c).forEach(b => b.addEventListener('click', () => delAdmin(b.dataset.adel)));
+  icons();
+}
+function adminRow(a) {
+  return `<tr>
+    <td><div class="cell-title">${esc(a.name)}</div>${a.me ? '<span class="badge badge--ardoise">Vous</span>' : ''}</td>
+    <td class="muted">${esc(a.email)}</td>
+    <td class="col-actions">
+      <button class="icon-btn" data-apw="${a.id}" data-name="${esc(a.name)}" title="Réinitialiser le mot de passe"><span data-lucide="key-round"></span></button>
+      ${a.me ? '' : `<button class="icon-btn danger" data-adel="${a.id}" title="Supprimer"><span data-lucide="trash-2"></span></button>`}
+    </td></tr>`;
+}
+function adminModal() {
+  openModal(`
+    <h3>Ajouter un administrateur</h3>
+    <form id="admin-form">
+      <div class="field"><label>Nom</label><input name="name" required /></div>
+      <div class="field"><label>E-mail (servira d'identifiant)</label><input name="email" type="email" required /></div>
+      <div class="field"><label>Mot de passe (8 caractères min.)</label><input name="password" type="text" required /></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button>
+        <button type="submit" class="btn btn--accent btn--md">Créer le compte</button>
+      </div>
+    </form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#admin-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      await api('/admin/admins', { method: 'POST', body: JSON.stringify({
+        name: f.name.value.trim(), email: f.email.value.trim(), password: f.password.value }) });
+      closeModal(); alert('Compte créé.\n\nIdentifiant : ' + f.email.value.trim() + '\nMot de passe : ' + f.password.value + '\n\nTransmettez ces accès.');
+      renderAdmins();
+    } catch (ex) { toast(ex.message, true); }
+  });
+}
+function adminPwdModal(id, name) {
+  openModal(`
+    <h3>Mot de passe — ${esc(name)}</h3>
+    <form id="apwd-form">
+      <div class="field"><label>Nouveau mot de passe (8 caractères min.)</label><input name="password" type="text" required /></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button>
+        <button type="submit" class="btn btn--accent btn--md">Définir</button>
+      </div>
+    </form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#apwd-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const pwd = e.target.password.value;
+    try { await api('/admin/admins/' + id + '/password', { method: 'POST', body: JSON.stringify({ password: pwd }) });
+      closeModal(); alert('Nouveau mot de passe défini : ' + pwd); }
+    catch (ex) { toast(ex.message, true); }
+  });
+}
+async function delAdmin(id) {
+  if (!confirm('Supprimer cet administrateur ?')) return;
+  try { await api('/admin/admins/' + id, { method: 'DELETE' }); toast('Administrateur supprimé'); renderAdmins(); }
   catch (ex) { toast(ex.message, true); }
 }
 

@@ -474,9 +474,17 @@ async function handleAdmin(request, env, url, method, session) {
   }
   const memMatch = path.match(/^\/api\/admin\/memberships\/(\d+)$/);
   if (memMatch && method === 'PATCH') {
+    const id = Number(memMatch[1]);
     const b = await request.json().catch(() => ({}));
-    const status = ['pending', 'accepted', 'declined'].includes(b.status) ? b.status : 'pending';
-    await env.DB.prepare(`UPDATE memberships SET status=? WHERE id=?`).bind(status, Number(memMatch[1])).run();
+    if (b.status && ['pending', 'accepted', 'declined'].includes(b.status))
+      await env.DB.prepare(`UPDATE memberships SET status=? WHERE id=?`).bind(b.status, id).run();
+    if ('amount' in b || 'pay_method' in b || 'paid' in b) {
+      const amount = (b.amount === null || b.amount === '' || b.amount === undefined) ? null : Number(b.amount);
+      const pm = ['especes', 'cheque', 'virement', 'helloasso', 'cb'].includes(b.pay_method) ? b.pay_method : null;
+      const paid = b.paid ? 1 : 0;
+      await env.DB.prepare(`UPDATE memberships SET amount=?, pay_method=?, paid=?, paid_at=? WHERE id=?`)
+        .bind(amount, pm, paid, paid ? (clean(b.paid_at, 40) || new Date().toISOString().slice(0, 10)) : null, id).run();
+    }
     return json({ ok: true });
   }
   if (memMatch && method === 'DELETE') {
@@ -610,6 +618,52 @@ async function handleAdmin(request, env, url, method, session) {
   }
   if (mpMatch && method === 'DELETE') {
     await env.DB.prepare(`DELETE FROM merchant_posts WHERE id=?`).bind(Number(mpMatch[1])).run();
+    return json({ ok: true });
+  }
+
+  /* ----- Administrateurs (comptes & mots de passe) ----- */
+  if (path === '/api/admin/admins' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT id, email, name, created_at FROM admins ORDER BY name`).all();
+    return json((results || []).map(a => ({ ...a, me: a.email.toLowerCase() === session.email.toLowerCase() })));
+  }
+  if (path === '/api/admin/admins' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const email = clean(b.email, 254).toLowerCase(), name = clean(b.name, 120), password = clean(b.password, 200);
+    if (!isValidEmail(email) || !name) return json({ error: 'E-mail valide et nom requis.' }, 400);
+    if (password.length < 8) return json({ error: 'Mot de passe : 8 caractères minimum.' }, 400);
+    const exists = await env.DB.prepare(`SELECT id FROM admins WHERE lower(email) = ?`).bind(email).first();
+    if (exists) return json({ error: 'Un administrateur avec cet e-mail existe déjà.' }, 409);
+    const { hash, salt, iter } = await hashPassword(password);
+    await env.DB.prepare(`INSERT INTO admins (email, name, pass_hash, pass_salt, pass_iter) VALUES (?,?,?,?,?)`)
+      .bind(email, name, hash, salt, iter).run();
+    return json({ ok: true });
+  }
+  const adMatch = path.match(/^\/api\/admin\/admins\/(\d+)$/);
+  if (adMatch && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 120);
+    if (!name) return json({ error: 'Nom requis.' }, 400);
+    await env.DB.prepare(`UPDATE admins SET name=? WHERE id=?`).bind(name, Number(adMatch[1])).run();
+    return json({ ok: true });
+  }
+  if (adMatch && method === 'DELETE') {
+    const target = await env.DB.prepare(`SELECT email FROM admins WHERE id=?`).bind(Number(adMatch[1])).first();
+    if (!target) return json({ error: 'Compte introuvable.' }, 404);
+    if (target.email.toLowerCase() === session.email.toLowerCase())
+      return json({ error: 'Vous ne pouvez pas supprimer votre propre compte.' }, 400);
+    const cnt = await env.DB.prepare(`SELECT COUNT(*) AS n FROM admins`).first();
+    if (cnt.n <= 1) return json({ error: 'Au moins un administrateur doit rester.' }, 400);
+    await env.DB.prepare(`DELETE FROM admins WHERE id=?`).bind(Number(adMatch[1])).run();
+    return json({ ok: true });
+  }
+  const adPw = path.match(/^\/api\/admin\/admins\/(\d+)\/password$/);
+  if (adPw && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const password = clean(b.password, 200);
+    if (password.length < 8) return json({ error: 'Mot de passe : 8 caractères minimum.' }, 400);
+    const { hash, salt, iter } = await hashPassword(password);
+    await env.DB.prepare(`UPDATE admins SET pass_hash=?, pass_salt=?, pass_iter=? WHERE id=?`)
+      .bind(hash, salt, iter, Number(adPw[1])).run();
     return json({ ok: true });
   }
 
