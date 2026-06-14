@@ -484,10 +484,12 @@ async function handleAdmin(request, env, url, method, session) {
       const paid = b.paid ? 1 : 0;
       await env.DB.prepare(`UPDATE memberships SET amount=?, pay_method=?, paid=?, paid_at=? WHERE id=?`)
         .bind(amount, pm, paid, paid ? (clean(b.paid_at, 40) || new Date().toISOString().slice(0, 10)) : null, id).run();
+      await syncMembershipEntry(env, id);
     }
     return json({ ok: true });
   }
   if (memMatch && method === 'DELETE') {
+    await deleteSourceEntry(env, 'membership', Number(memMatch[1]));
     await env.DB.prepare(`DELETE FROM memberships WHERE id=?`).bind(Number(memMatch[1])).run();
     return json({ ok: true });
   }
@@ -518,14 +520,16 @@ async function handleAdmin(request, env, url, method, session) {
     const amount = Number(b.amount);
     if (!(amount > 0)) return json({ error: 'Montant invalide.' }, 400);
     const method2 = ['helloasso', 'cheque', 'virement', 'especes'].includes(b.method) ? b.method : 'helloasso';
-    await env.DB.prepare(
+    const dr = await env.DB.prepare(
       `INSERT INTO donations (donor, email, amount, method, note, donated_at) VALUES (?,?,?,?,?,?)`)
       .bind(clean(b.donor, 160), clean(b.email, 254), amount, method2, clean(b.note, 500),
         clean(b.donated_at, 40) || new Date().toISOString().slice(0, 10)).run();
+    await syncDonationEntry(env, dr.meta.last_row_id);
     return json({ ok: true });
   }
   const donMatch = path.match(/^\/api\/admin\/donations\/(\d+)$/);
   if (donMatch && method === 'DELETE') {
+    await deleteSourceEntry(env, 'donation', Number(donMatch[1]));
     await env.DB.prepare(`DELETE FROM donations WHERE id=?`).bind(Number(donMatch[1])).run();
     return json({ ok: true });
   }
@@ -665,6 +669,107 @@ async function handleAdmin(request, env, url, method, session) {
     await env.DB.prepare(`UPDATE admins SET pass_hash=?, pass_salt=?, pass_iter=? WHERE id=?`)
       .bind(hash, salt, iter, Number(adPw[1])).run();
     return json({ ok: true });
+  }
+
+  /* ----- Comptabilité : plan de comptes ----- */
+  if (path === '/api/admin/accounting/accounts' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT * FROM accounts WHERE archived=0 ORDER BY code`).all();
+    return json(results || []);
+  }
+  if (path === '/api/admin/accounting/accounts' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const code = clean(b.code, 20), name = clean(b.name, 160), klass = parseInt(b.klass, 10);
+    const type = ['actif', 'passif', 'charge', 'produit'].includes(b.type) ? b.type : null;
+    if (!code || !name || !(klass >= 1 && klass <= 7) || !type) return json({ error: 'Code, libellé, classe (1-7) et type requis.' }, 400);
+    const ex = await env.DB.prepare(`SELECT id FROM accounts WHERE code=?`).bind(code).first();
+    if (ex) return json({ error: 'Ce numéro de compte existe déjà.' }, 409);
+    await env.DB.prepare(`INSERT INTO accounts (code, name, klass, type) VALUES (?,?,?,?)`).bind(code, name, klass, type).run();
+    return json({ ok: true });
+  }
+  const accMatch = path.match(/^\/api\/admin\/accounting\/accounts\/(\d+)$/);
+  if (accMatch && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 160);
+    if (!name) return json({ error: 'Libellé requis.' }, 400);
+    await env.DB.prepare(`UPDATE accounts SET name=? WHERE id=?`).bind(name, Number(accMatch[1])).run();
+    return json({ ok: true });
+  }
+  if (accMatch && method === 'DELETE') {
+    const used = await env.DB.prepare(`SELECT COUNT(*) AS n FROM journal_lines WHERE account_id=?`).bind(Number(accMatch[1])).first();
+    if (used.n > 0) return json({ error: 'Compte utilisé dans des écritures : archivez-le plutôt.' }, 400);
+    await env.DB.prepare(`DELETE FROM accounts WHERE id=?`).bind(Number(accMatch[1])).run();
+    return json({ ok: true });
+  }
+
+  /* ----- Comptabilité : écritures ----- */
+  if (path === '/api/admin/accounting/entries' && method === 'GET') {
+    const from = url.searchParams.get('from'), to = url.searchParams.get('to');
+    const conds = [], binds = [];
+    if (from) { conds.push('e.edate >= ?'); binds.push(from); }
+    if (to) { conds.push('e.edate <= ?'); binds.push(to); }
+    const where = conds.length ? ' WHERE ' + conds.join(' AND ') : '';
+    const entries = (await env.DB.prepare(
+      `SELECT id, edate, label, piece, source FROM journal_entries e${where} ORDER BY e.edate DESC, e.id DESC`).bind(...binds).all()).results || [];
+    const lines = (await env.DB.prepare(
+      `SELECT l.entry_id, l.account_id, l.debit, l.credit, l.label, a.code AS acode, a.name AS aname
+         FROM journal_lines l JOIN accounts a ON a.id = l.account_id`).all()).results || [];
+    const by = {};
+    lines.forEach(l => { (by[l.entry_id] = by[l.entry_id] || []).push(l); });
+    entries.forEach(e => { e.lines = by[e.id] || []; });
+    return json(entries);
+  }
+  if (path === '/api/admin/accounting/entries' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const edate = clean(b.edate, 20), label = clean(b.label, 200);
+    const lines = Array.isArray(b.lines) ? b.lines : [];
+    if (!edate || !label) return json({ error: 'Date et libellé requis.' }, 400);
+    let td = 0, tc = 0;
+    const clean_lines = [];
+    for (const l of lines) {
+      const aid = parseInt(l.account_id, 10); if (!aid) continue;
+      const d = Math.round((Number(l.debit) || 0) * 100) / 100, cr = Math.round((Number(l.credit) || 0) * 100) / 100;
+      if (d === 0 && cr === 0) continue;
+      td += d; tc += cr; clean_lines.push({ account_id: aid, debit: d, credit: cr, label: clean(l.label, 200) || null });
+    }
+    if (clean_lines.length < 2) return json({ error: 'Une écriture comporte au moins deux lignes.' }, 400);
+    if (Math.round(td * 100) !== Math.round(tc * 100)) return json({ error: `Écriture déséquilibrée : débit ${td.toFixed(2)} € ≠ crédit ${tc.toFixed(2)} €.` }, 400);
+    if (td === 0) return json({ error: 'Montant nul.' }, 400);
+    await createEntry(env, { edate, label, piece: clean(b.piece, 60), source: 'manual', lines: clean_lines });
+    return json({ ok: true });
+  }
+  const entMatch = path.match(/^\/api\/admin\/accounting\/entries\/(\d+)$/);
+  if (entMatch && method === 'DELETE') {
+    const id = Number(entMatch[1]);
+    await env.DB.prepare(`DELETE FROM journal_lines WHERE entry_id=?`).bind(id).run();
+    await env.DB.prepare(`DELETE FROM journal_entries WHERE id=?`).bind(id).run();
+    return json({ ok: true });
+  }
+
+  /* ----- Comptabilité : balance (par compte, sur une période) ----- */
+  if (path === '/api/admin/accounting/balance' && method === 'GET') {
+    const from = url.searchParams.get('from'), to = url.searchParams.get('to');
+    const conds = [], binds = [];
+    if (from) { conds.push('e.edate >= ?'); binds.push(from); }
+    if (to) { conds.push('e.edate <= ?'); binds.push(to); }
+    const where = conds.length ? ' WHERE ' + conds.join(' AND ') : '';
+    const { results } = await env.DB.prepare(
+      `SELECT a.code, a.name, a.klass, a.type,
+              COALESCE(SUM(l.debit),0) AS debit, COALESCE(SUM(l.credit),0) AS credit
+         FROM journal_lines l JOIN journal_entries e ON e.id = l.entry_id JOIN accounts a ON a.id = l.account_id
+         ${where} GROUP BY a.id ORDER BY a.code`).bind(...binds).all();
+    return json(results || []);
+  }
+
+  /* ----- Comptabilité : export CSV ----- */
+  if (path === '/api/admin/accounting/export.csv' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT e.edate, e.label, e.piece, a.code AS acode, a.name AS aname, l.debit, l.credit, l.label AS lline
+         FROM journal_lines l JOIN journal_entries e ON e.id=l.entry_id JOIN accounts a ON a.id=l.account_id
+        ORDER BY e.edate, e.id, l.id`).all();
+    const rows = [['Date', 'Écriture', 'Pièce', 'Compte', 'Libellé compte', 'Débit', 'Crédit', 'Détail']];
+    (results || []).forEach(r => rows.push([r.edate, r.label, r.piece || '', r.acode, r.aname, r.debit || '', r.credit || '', r.lline || '']));
+    const csv = '﻿' + rows.map(r => r.map(csvCell).join(';')).join('\r\n');
+    return new Response(csv, { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="comptabilite-montety.csv"' } });
   }
 
   return json({ error: 'Route inconnue' }, 404);
@@ -827,3 +932,54 @@ function icsResponse(events, name) {
     headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'attachment; filename="agenda-montety.ics"' },
   });
 }
+
+/* ----------------------------- comptabilité (partie double) ----------------------------- */
+async function accountIdByCode(env, code) {
+  const r = await env.DB.prepare(`SELECT id FROM accounts WHERE code = ?`).bind(code).first();
+  return r ? r.id : null;
+}
+async function createEntry(env, e) {
+  const r = await env.DB.prepare(
+    `INSERT INTO journal_entries (edate, label, piece, source, source_id) VALUES (?,?,?,?,?)`)
+    .bind(e.edate, e.label, e.piece || null, e.source || 'manual', e.source_id || null).run();
+  const eid = r.meta.last_row_id;
+  for (const l of e.lines) {
+    await env.DB.prepare(`INSERT INTO journal_lines (entry_id, account_id, debit, credit, label) VALUES (?,?,?,?,?)`)
+      .bind(eid, l.account_id, Number(l.debit) || 0, Number(l.credit) || 0, l.label || null).run();
+  }
+  return eid;
+}
+async function deleteSourceEntry(env, source, sourceId) {
+  await env.DB.prepare(
+    `DELETE FROM journal_lines WHERE entry_id IN (SELECT id FROM journal_entries WHERE source=? AND source_id=?)`)
+    .bind(source, sourceId).run();
+  await env.DB.prepare(`DELETE FROM journal_entries WHERE source=? AND source_id=?`).bind(source, sourceId).run();
+}
+function payToAsset(method) { return method === 'especes' ? '530' : '512'; }
+async function syncMembershipEntry(env, mid) {
+  await deleteSourceEntry(env, 'membership', mid);
+  const m = await env.DB.prepare(`SELECT * FROM memberships WHERE id=?`).bind(mid).first();
+  if (!m || !m.paid || !(Number(m.amount) > 0)) return;
+  const debitId = await accountIdByCode(env, payToAsset(m.pay_method));
+  const credId = await accountIdByCode(env, '756');
+  if (!debitId || !credId) return;
+  await createEntry(env, {
+    edate: m.paid_at || new Date().toISOString().slice(0, 10),
+    label: `Cotisation — ${m.prenom} ${m.nom}`, source: 'membership', source_id: mid,
+    lines: [{ account_id: debitId, debit: m.amount, credit: 0 }, { account_id: credId, debit: 0, credit: m.amount }],
+  });
+}
+async function syncDonationEntry(env, did) {
+  await deleteSourceEntry(env, 'donation', did);
+  const d = await env.DB.prepare(`SELECT * FROM donations WHERE id=?`).bind(did).first();
+  if (!d || !(Number(d.amount) > 0)) return;
+  const debitId = await accountIdByCode(env, payToAsset(d.method));
+  const credId = await accountIdByCode(env, '754');
+  if (!debitId || !credId) return;
+  await createEntry(env, {
+    edate: (d.donated_at || '').slice(0, 10) || new Date().toISOString().slice(0, 10),
+    label: `Don — ${d.donor || 'Anonyme'}`, source: 'donation', source_id: did,
+    lines: [{ account_id: debitId, debit: d.amount, credit: 0 }, { account_id: credId, debit: 0, credit: d.amount }],
+  });
+}
+function csvCell(v) { const s = String(v == null ? '' : v); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }

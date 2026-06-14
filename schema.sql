@@ -132,6 +132,36 @@ CREATE TABLE IF NOT EXISTS merchant_posts (
   created_at      TEXT DEFAULT (datetime('now'))
 );
 
+-- Comptabilité (partie double) — plan comptable associatif
+CREATE TABLE IF NOT EXISTS accounts (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  code     TEXT NOT NULL UNIQUE,            -- numéro de compte (ex. 512, 756)
+  name     TEXT NOT NULL,
+  klass    INTEGER NOT NULL,                -- classe 1..7
+  type     TEXT NOT NULL,                   -- actif / passif / charge / produit
+  archived INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS journal_entries (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  edate      TEXT NOT NULL,                 -- date de l'écriture (YYYY-MM-DD)
+  label      TEXT NOT NULL,
+  piece      TEXT,
+  source     TEXT NOT NULL DEFAULT 'manual',-- manual / membership / donation / bar
+  source_id  INTEGER,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS journal_lines (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  entry_id   INTEGER NOT NULL,
+  account_id INTEGER NOT NULL,
+  debit      REAL NOT NULL DEFAULT 0,
+  credit     REAL NOT NULL DEFAULT 0,
+  label      TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_lines_entry      ON journal_lines (entry_id);
+CREATE INDEX IF NOT EXISTS idx_lines_account    ON journal_lines (account_id);
+CREATE INDEX IF NOT EXISTS idx_entries_date     ON journal_entries (edate);
 CREATE INDEX IF NOT EXISTS idx_events_published   ON events (published, starts_at);
 CREATE INDEX IF NOT EXISTS idx_contact_read       ON contact_messages (read, created_at);
 CREATE INDEX IF NOT EXISTS idx_memberships_status ON memberships (status, created_at);

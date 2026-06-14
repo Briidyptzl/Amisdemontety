@@ -115,13 +115,13 @@ async function init() {
 /* ----------------------------- Navigation des vues ----------------------------- */
 const VIEW_TITLES = {
   dashboard: 'Tableau de bord', events: 'Agenda', memberships: 'Adhésions',
-  messages: 'Messages', donations: 'Dons', listings: 'Entraide', merchants: 'Commerçants',
-  admins: 'Administrateurs', settings: 'Réglages',
+  messages: 'Messages', donations: 'Dons', accounting: 'Comptabilité', listings: 'Entraide',
+  merchants: 'Commerçants', admins: 'Administrateurs', settings: 'Réglages',
 };
 function switchView(view) {
   $$('.dash-nav__item').forEach(b => b.classList.toggle('is-active', b.dataset.view === view));
   $('#view-title').textContent = VIEW_TITLES[view] || '';
-  const render = { dashboard: renderDashboard, events: renderEvents, memberships: renderMemberships, messages: renderMessages, donations: renderDonations, listings: renderAdminListings, merchants: renderAdminMerchants, admins: renderAdmins, settings: renderSettings }[view];
+  const render = { dashboard: renderDashboard, events: renderEvents, memberships: renderMemberships, messages: renderMessages, donations: renderDonations, accounting: renderAccounting, listings: renderAdminListings, merchants: renderAdminMerchants, admins: renderAdmins, settings: renderSettings }[view];
   if (render) render();
 }
 
@@ -802,6 +802,174 @@ async function delMPost(id) {
   try { await api('/admin/merchant-posts/' + id, { method: 'DELETE' }); renderAdminMerchants(); }
   catch (ex) { toast(ex.message, true); }
 }
+
+/* ----------------------------- Comptabilité ----------------------------- */
+let ACC_TAB = 'journal', ACC_FROM = '', ACC_TO = '', ACC_ACCOUNTS = [], ACC_LEDGER = '';
+function eur(n) { return (Number(n) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'; }
+function accExercice() { const y = new Date().getFullYear(); if (!ACC_FROM) ACC_FROM = y + '-01-01'; if (!ACC_TO) ACC_TO = y + '-12-31'; }
+
+async function renderAccounting() {
+  accExercice();
+  const c = $('#dash-content'); c.innerHTML = '<p class="muted">Chargement…</p>';
+  ACC_ACCOUNTS = await api('/admin/accounting/accounts');
+  drawAccounting();
+}
+async function drawAccounting() {
+  const c = $('#dash-content');
+  const tab = (v, l) => `<button class="seg-btn ${ACC_TAB === v ? 'is-active' : ''}" data-atab="${v}">${l}</button>`;
+  c.innerHTML = `
+    <div class="acc-toolbar">
+      <div class="seg seg--wrap">${tab('journal', 'Journal')}${tab('balance', 'Balance')}${tab('resultat', 'Résultat')}${tab('bilan', 'Bilan')}${tab('ledger', 'Grand livre')}${tab('plan', 'Plan comptable')}</div>
+      <div class="acc-period">
+        <label>Du <input type="date" id="acc-from" value="${ACC_FROM}"></label>
+        <label>au <input type="date" id="acc-to" value="${ACC_TO}"></label>
+        <a class="btn btn--ghost btn--sm" href="/api/admin/accounting/export.csv"><span data-lucide="download"></span> CSV</a>
+      </div>
+    </div>
+    <div id="acc-body"><p class="muted">Chargement…</p></div>`;
+  $$('.seg-btn', c).forEach(b => b.addEventListener('click', () => { ACC_TAB = b.dataset.atab; drawAccounting(); }));
+  $('#acc-from').addEventListener('change', e => { ACC_FROM = e.target.value; drawAccounting(); });
+  $('#acc-to').addEventListener('change', e => { ACC_TO = e.target.value; drawAccounting(); });
+  icons();
+  const body = $('#acc-body');
+  if (ACC_TAB === 'journal') await accJournal(body);
+  else if (ACC_TAB === 'plan') await accPlan(body);
+  else if (ACC_TAB === 'ledger') await accLedger(body);
+  else {
+    const bal = await api(`/admin/accounting/balance?from=${ACC_FROM}&to=${ACC_TO}`);
+    if (ACC_TAB === 'balance') accBalance(body, bal);
+    else if (ACC_TAB === 'resultat') accResultat(body, bal);
+    else accBilan(body, bal);
+  }
+  icons();
+}
+async function accJournal(body) {
+  const entries = await api(`/admin/accounting/entries?from=${ACC_FROM}&to=${ACC_TO}`);
+  body.innerHTML = `<div class="panel">
+    <div class="panel-head"><h3>Journal (${entries.length})</h3>
+      <button class="btn btn--accent btn--sm" id="acc-new"><span data-lucide="plus"></span> Nouvelle écriture</button></div>
+    <div class="panel-body">${entries.length ? entries.map(entryBlock).join('') : '<div class="empty-state">Aucune écriture sur la période.</div>'}</div></div>`;
+  $('#acc-new').addEventListener('click', entryModal);
+  $$('[data-entdel]', body).forEach(b => b.addEventListener('click', () => delEntry(b.dataset.entdel)));
+  icons();
+}
+function srcBadge(s) { return s === 'membership' ? '<span class="badge badge--olive">cotisation</span>' : s === 'donation' ? '<span class="badge badge--brique">don</span>' : ''; }
+function entryBlock(e) {
+  const total = e.lines.reduce((s, l) => s + (l.debit || 0), 0);
+  return `<div class="acc-entry">
+    <div class="acc-entry-head">
+      <div><strong>${fmtDate(e.edate)}</strong> · ${esc(e.label)} ${e.piece ? `<span class="muted">(${esc(e.piece)})</span>` : ''} ${srcBadge(e.source)}</div>
+      <div class="muted">${eur(total)} ${e.source === 'manual' ? `<button class="icon-btn danger" data-entdel="${e.id}" title="Supprimer"><span data-lucide="trash-2"></span></button>` : ''}</div>
+    </div>
+    <table class="acc-lines"><tbody>${e.lines.map(l => `<tr><td>${esc(l.acode)} ${esc(l.aname)}</td><td class="num">${l.debit ? eur(l.debit) : ''}</td><td class="num">${l.credit ? eur(l.credit) : ''}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function entryModal() {
+  const opts = ACC_ACCOUNTS.map(a => `<option value="${a.id}">${esc(a.code)} — ${esc(a.name)}</option>`).join('');
+  const lineRow = () => `<div class="acc-line-row"><select class="acc-l-acc"><option value="">— compte —</option>${opts}</select><input class="acc-l-deb" type="number" step="0.01" min="0" placeholder="Débit"><input class="acc-l-cre" type="number" step="0.01" min="0" placeholder="Crédit"><button type="button" class="icon-btn acc-l-del"><span data-lucide="x"></span></button></div>`;
+  openModal(`<h3>Nouvelle écriture</h3>
+    <form id="entry-form">
+      <div class="form-grid2"><div class="field"><label>Date</label><input name="edate" type="date" value="${ACC_TO}" required></div><div class="field"><label>Pièce (n°)</label><input name="piece" placeholder="Facture, reçu…"></div></div>
+      <div class="field"><label>Libellé</label><input name="label" required placeholder="Achat boissons pour le bar"></div>
+      <div class="acc-lines-edit" id="acc-lines">${lineRow()}${lineRow()}</div>
+      <button type="button" class="btn btn--ghost btn--sm" id="acc-addline"><span data-lucide="plus"></span> Ajouter une ligne</button>
+      <div class="acc-balance no" id="acc-bal">Débit 0,00 € · Crédit 0,00 €</div>
+      <div class="modal-actions"><button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button><button type="submit" class="btn btn--accent btn--md">Enregistrer</button></div>
+    </form>`);
+  const linesEl = $('#acc-lines');
+  function recompute() {
+    let d = 0, cr = 0;
+    $$('.acc-line-row', linesEl).forEach(r => { d += Number($('.acc-l-deb', r).value) || 0; cr += Number($('.acc-l-cre', r).value) || 0; });
+    const ok = Math.round(d * 100) === Math.round(cr * 100) && d > 0;
+    const bal = $('#acc-bal'); bal.textContent = `Débit ${eur(d)} · Crédit ${eur(cr)}` + (ok ? '  ✓ équilibré' : '  — à équilibrer'); bal.className = 'acc-balance ' + (ok ? 'ok' : 'no');
+  }
+  function bindRow(r) {
+    $('.acc-l-del', r).addEventListener('click', () => { if ($$('.acc-line-row', linesEl).length > 2) { r.remove(); recompute(); } });
+    $('.acc-l-deb', r).addEventListener('input', () => { if ($('.acc-l-deb', r).value) $('.acc-l-cre', r).value = ''; recompute(); });
+    $('.acc-l-cre', r).addEventListener('input', () => { if ($('.acc-l-cre', r).value) $('.acc-l-deb', r).value = ''; recompute(); });
+  }
+  $$('.acc-line-row', linesEl).forEach(bindRow);
+  $('#acc-addline').addEventListener('click', () => { const div = document.createElement('div'); div.innerHTML = lineRow(); const r = div.firstElementChild; linesEl.appendChild(r); bindRow(r); icons(); });
+  $('#modal-cancel').addEventListener('click', closeModal);
+  icons();
+  $('#entry-form').addEventListener('submit', async e => {
+    e.preventDefault(); const f = e.target;
+    const lines = $$('.acc-line-row', linesEl).map(r => ({ account_id: $('.acc-l-acc', r).value, debit: $('.acc-l-deb', r).value, credit: $('.acc-l-cre', r).value })).filter(l => l.account_id && (l.debit || l.credit));
+    try { await api('/admin/accounting/entries', { method: 'POST', body: JSON.stringify({ edate: f.edate.value, label: f.label.value.trim(), piece: f.piece.value.trim(), lines }) });
+      closeModal(); toast('Écriture enregistrée'); drawAccounting();
+    } catch (ex) { toast(ex.message, true); }
+  });
+}
+async function delEntry(id) { if (!confirm('Supprimer cette écriture ?')) return; try { await api('/admin/accounting/entries/' + id, { method: 'DELETE' }); toast('Écriture supprimée'); drawAccounting(); } catch (ex) { toast(ex.message, true); } }
+
+function accBalance(body, bal) {
+  let td = 0, tc = 0;
+  const rows = bal.map(a => { td += a.debit; tc += a.credit; const s = a.debit - a.credit;
+    return `<tr><td><code>${esc(a.code)}</code></td><td>${esc(a.name)}</td><td class="num">${a.debit ? eur(a.debit) : ''}</td><td class="num">${a.credit ? eur(a.credit) : ''}</td><td class="num">${eur(Math.abs(s))} ${s >= 0 ? 'D' : 'C'}</td></tr>`; }).join('');
+  body.innerHTML = `<div class="panel"><div class="panel-head"><h3>Balance générale</h3></div><div class="panel-body">
+    ${bal.length ? `<table class="table acc-table"><thead><tr><th>Compte</th><th>Libellé</th><th class="num">Débit</th><th class="num">Crédit</th><th class="num">Solde</th></tr></thead>
+    <tbody>${rows}</tbody><tfoot><tr><th colspan="2">Totaux</th><th class="num">${eur(td)}</th><th class="num">${eur(tc)}</th><th></th></tr></tfoot></table>` : '<div class="empty-state">Aucun mouvement sur la période.</div>'}</div></div>`;
+}
+function accResultat(body, bal) {
+  const charges = bal.filter(a => a.klass === 6).map(a => ({ ...a, montant: a.debit - a.credit }));
+  const produits = bal.filter(a => a.klass === 7).map(a => ({ ...a, montant: a.credit - a.debit }));
+  const tC = charges.reduce((s, a) => s + a.montant, 0), tP = produits.reduce((s, a) => s + a.montant, 0), res = tP - tC;
+  const tbl = (rows, tot, lbl) => `<table class="table acc-table"><tbody>${rows.length ? rows.map(a => `<tr><td>${esc(a.code)} ${esc(a.name)}</td><td class="num">${eur(a.montant)}</td></tr>`).join('') : '<tr><td class="muted">—</td><td></td></tr>'}</tbody><tfoot><tr><th>${lbl}</th><th class="num">${eur(tot)}</th></tr></tfoot></table>`;
+  body.innerHTML = `<div class="acc-two">
+    <div class="panel"><div class="panel-head"><h3>Charges</h3></div><div class="panel-body">${tbl(charges, tC, 'Total charges')}</div></div>
+    <div class="panel"><div class="panel-head"><h3>Produits</h3></div><div class="panel-body">${tbl(produits, tP, 'Total produits')}</div></div></div>
+    <div class="acc-result ${res >= 0 ? 'pos' : 'neg'}">Résultat de l'exercice : <strong>${eur(Math.abs(res))} ${res >= 0 ? '(excédent)' : '(déficit)'}</strong></div>`;
+}
+function accBilan(body, bal) {
+  const charges = bal.filter(a => a.klass === 6).reduce((s, a) => s + (a.debit - a.credit), 0);
+  const produits = bal.filter(a => a.klass === 7).reduce((s, a) => s + (a.credit - a.debit), 0);
+  const res = produits - charges;
+  const actif = bal.filter(a => a.klass === 2 || a.klass === 3 || a.klass === 5 || (a.klass === 4 && a.type === 'actif')).map(a => ({ ...a, montant: a.debit - a.credit })).filter(a => Math.round(a.montant * 100) !== 0);
+  const passif = bal.filter(a => a.klass === 1 || (a.klass === 4 && a.type === 'passif')).map(a => ({ ...a, montant: a.credit - a.debit })).filter(a => Math.round(a.montant * 100) !== 0);
+  const tA = actif.reduce((s, a) => s + a.montant, 0), tP = passif.reduce((s, a) => s + a.montant, 0) + res;
+  const side = (rows, extra) => `<table class="table acc-table"><tbody>${rows.map(a => `<tr><td>${esc(a.code)} ${esc(a.name)}</td><td class="num">${eur(a.montant)}</td></tr>`).join('')}${extra || ''}</tbody></table>`;
+  body.innerHTML = `<div class="acc-two">
+    <div class="panel"><div class="panel-head"><h3>Actif</h3><strong>${eur(tA)}</strong></div><div class="panel-body">${side(actif)}</div></div>
+    <div class="panel"><div class="panel-head"><h3>Passif</h3><strong>${eur(tP)}</strong></div><div class="panel-body">${side(passif, `<tr><td><em>Résultat de l'exercice</em></td><td class="num">${eur(res)}</td></tr>`)}</div></div></div>
+    <p class="hint" style="margin-top:12px">${Math.round(tA * 100) === Math.round(tP * 100) ? '✓ Bilan équilibré.' : '⚠️ Actif ≠ Passif : pensez à saisir les soldes d\'ouverture (fonds associatifs, immobilisations, solde de banque initial).'}</p>`;
+}
+async function accLedger(body) {
+  const opts = ACC_ACCOUNTS.map(a => `<option value="${a.id}" ${ACC_LEDGER == a.id ? 'selected' : ''}>${esc(a.code)} — ${esc(a.name)}</option>`).join('');
+  body.innerHTML = `<div class="panel"><div class="panel-head"><h3>Grand livre</h3><select id="acc-ledsel" class="acc-ledsel"><option value="">— choisir un compte —</option>${opts}</select></div><div class="panel-body" id="acc-ledbody"><p class="muted">Choisissez un compte.</p></div></div>`;
+  $('#acc-ledsel').addEventListener('change', async e => { ACC_LEDGER = e.target.value; await fillLedger(); });
+  if (ACC_LEDGER) await fillLedger();
+  icons();
+}
+async function fillLedger() {
+  const entries = await api(`/admin/accounting/entries?from=${ACC_FROM}&to=${ACC_TO}`);
+  const aid = Number(ACC_LEDGER); let solde = 0; const rows = [];
+  entries.slice().reverse().forEach(e => e.lines.filter(l => l.account_id === aid).forEach(l => {
+    solde += (l.debit || 0) - (l.credit || 0);
+    rows.push(`<tr><td>${fmtDate(e.edate)}</td><td>${esc(e.label)}</td><td class="num">${l.debit ? eur(l.debit) : ''}</td><td class="num">${l.credit ? eur(l.credit) : ''}</td><td class="num">${eur(Math.abs(solde))} ${solde >= 0 ? 'D' : 'C'}</td></tr>`);
+  }));
+  $('#acc-ledbody').innerHTML = rows.length ? `<table class="table acc-table"><thead><tr><th>Date</th><th>Libellé</th><th class="num">Débit</th><th class="num">Crédit</th><th class="num">Solde</th></tr></thead><tbody>${rows.join('')}</tbody></table>` : '<div class="empty-state">Aucun mouvement sur ce compte.</div>';
+}
+async function accPlan(body) {
+  const by = {}; ACC_ACCOUNTS.forEach(a => { (by[a.klass] = by[a.klass] || []).push(a); });
+  const cl = { 1: '1 — Fonds propres & emprunts', 2: '2 — Immobilisations', 3: '3 — Stocks', 4: '4 — Tiers', 5: '5 — Comptes financiers', 6: '6 — Charges', 7: '7 — Produits' };
+  body.innerHTML = `<div class="panel"><div class="panel-head"><h3>Plan comptable (${ACC_ACCOUNTS.length})</h3><button class="btn btn--accent btn--sm" id="acc-addacc"><span data-lucide="plus"></span> Ajouter un compte</button></div>
+    <div class="panel-body">${[1, 2, 3, 4, 5, 6, 7].filter(k => by[k]).map(k => `<div class="acc-class"><h4>${cl[k]}</h4><table class="table acc-table"><tbody>${by[k].map(a => `<tr><td><code>${esc(a.code)}</code></td><td>${esc(a.name)}</td><td class="muted">${esc(a.type)}</td><td class="col-actions"><button class="icon-btn danger" data-accdel="${a.id}" title="Supprimer"><span data-lucide="trash-2"></span></button></td></tr>`).join('')}</tbody></table></div>`).join('')}</div></div>`;
+  $('#acc-addacc').addEventListener('click', accountModal);
+  $$('[data-accdel]', body).forEach(b => b.addEventListener('click', () => delAccount(b.dataset.accdel)));
+  icons();
+}
+function accountModal() {
+  openModal(`<h3>Ajouter un compte</h3><form id="acc-form">
+    <div class="form-grid2"><div class="field"><label>Numéro</label><input name="code" placeholder="606" required></div><div class="field"><label>Classe</label><select name="klass">${[1, 2, 3, 4, 5, 6, 7].map(k => `<option value="${k}">${k}</option>`).join('')}</select></div></div>
+    <div class="field"><label>Libellé</label><input name="name" required></div>
+    <div class="field"><label>Type</label><select name="type"><option value="charge">Charge</option><option value="produit">Produit</option><option value="actif">Actif</option><option value="passif">Passif</option></select></div>
+    <div class="modal-actions"><button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button><button type="submit" class="btn btn--accent btn--md">Créer</button></div></form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#acc-form').addEventListener('submit', async e => { e.preventDefault(); const f = e.target;
+    try { await api('/admin/accounting/accounts', { method: 'POST', body: JSON.stringify({ code: f.code.value.trim(), name: f.name.value.trim(), klass: f.klass.value, type: f.type.value }) });
+      closeModal(); toast('Compte créé'); ACC_ACCOUNTS = await api('/admin/accounting/accounts'); drawAccounting();
+    } catch (ex) { toast(ex.message, true); } });
+}
+async function delAccount(id) { if (!confirm('Supprimer ce compte ?')) return; try { await api('/admin/accounting/accounts/' + id, { method: 'DELETE' }); ACC_ACCOUNTS = await api('/admin/accounting/accounts'); toast('Compte supprimé'); drawAccounting(); } catch (ex) { toast(ex.message, true); } }
 
 /* ----------------------------- Administrateurs ----------------------------- */
 async function renderAdmins() {

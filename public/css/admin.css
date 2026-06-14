@@ -168,7 +168,38 @@
 .cal-cell.is-today { border-color: var(--brique-400); box-shadow: inset 0 0 0 1px var(--brique-400); }
 .cal-cell-day { font-size: 0.82rem; font-weight: 700; color: var(--ardoise-600); margin-bottom: 4px; }
 
+/* ——— Comptabilité ——— */
+.acc-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+.seg--wrap { flex-wrap: wrap; }
+.acc-period { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 0.9rem; color: var(--encre-soft); }
+.acc-period input[type=date] { font-family: var(--font-body); padding: 6px 10px; border: 1.5px solid var(--color-border-strong); border-radius: var(--radius-sm); }
+.acc-table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.acc-table code { background: var(--creme-100); padding: 1px 6px; border-radius: var(--radius-xs); }
+.acc-table tfoot th { padding: 12px 22px; border-top: 2px solid var(--color-border); color: var(--ardoise-800); }
+.acc-entry { border: 1px solid var(--color-border); border-radius: var(--radius-md); margin: 0 22px 12px; overflow: hidden; }
+.acc-entry-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: var(--creme-50); border-bottom: 1px solid var(--color-border); font-size: 0.93rem; }
+.acc-lines { width: 100%; border-collapse: collapse; }
+.acc-lines td { padding: 6px 14px; border-bottom: 1px solid var(--creme-200); font-size: 0.9rem; }
+.acc-lines tr:last-child td { border-bottom: none; }
+.acc-lines .num { text-align: right; font-variant-numeric: tabular-nums; width: 130px; color: var(--encre); }
+.acc-lines-edit { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.acc-line-row { display: grid; grid-template-columns: 1fr 120px 120px 36px; gap: 8px; align-items: center; }
+.acc-line-row select, .acc-line-row input { padding: 8px 10px; border: 1.5px solid var(--color-border-strong); border-radius: var(--radius-sm); font-family: var(--font-body); font-size: 0.9rem; }
+.acc-balance { margin: 12px 0; padding: 10px 14px; border-radius: var(--radius-md); font-weight: 600; font-size: 0.92rem; }
+.acc-balance.ok { background: var(--olive-200); color: var(--olive-700); }
+.acc-balance.no { background: var(--creme-200); color: var(--encre-soft); }
+.acc-two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+.acc-result { margin-top: 16px; padding: 16px 22px; border-radius: var(--radius-lg); font-size: 1.1rem; text-align: center; }
+.acc-result.pos { background: var(--olive-200); color: var(--olive-700); }
+.acc-result.neg { background: var(--brique-200); color: var(--brique-700); }
+.acc-class { margin-bottom: 18px; }
+.acc-class h4 { margin: 0 0 6px; padding: 0 22px; color: var(--ardoise-700); font-family: var(--font-body); font-size: 0.82rem; letter-spacing: 0.04em; text-transform: uppercase; }
+.acc-ledsel { padding: 8px 12px; border: 1.5px solid var(--color-border-strong); border-radius: var(--radius-sm); font-family: var(--font-body); max-width: 100%; }
+
 @media (max-width: 900px) {
+  .acc-two { grid-template-columns: 1fr; }
+  .acc-line-row { grid-template-columns: 1fr 1fr 32px; }
+  .acc-line-row .acc-l-acc { grid-column: 1 / -1; }
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .dash { grid-template-columns: 1fr; }
   .dash-side {
