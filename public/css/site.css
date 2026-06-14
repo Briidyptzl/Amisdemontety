@@ -4,6 +4,7 @@
    =========================================================== */
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html { scroll-behavior: smooth; }
 
@@ -192,6 +193,14 @@ img { max-width: 100%; display: block; }
 .footer-col a, .footer-col p { color: var(--ardoise-200); font-size: 0.92rem; padding: 4px 0; margin: 0; text-decoration: none; display: block; }
 .footer-col a:hover { color: var(--creme-50); }
 .footer-script { font-family: var(--font-script); color: var(--ocre-400); font-size: 1.4rem; margin-top: 10px; }
+.footer-bottom {
+  max-width: var(--container); margin: 0 auto; padding: 18px 28px 28px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  border-top: 1px solid var(--ardoise-800); font-size: 0.82rem; color: var(--ardoise-300);
+}
+.footer-bottom a { display: inline-flex; align-items: center; gap: 6px; color: var(--ardoise-300); text-decoration: none; }
+.footer-bottom a:hover { color: var(--creme-50); }
+.footer-bottom svg { width: 14px; height: 14px; }
 
 /* ——— Hero ——— */
 .hero { background: radial-gradient(110% 80% at 85% -10%, var(--ocre-200) 0%, transparent 55%), var(--creme-100); }

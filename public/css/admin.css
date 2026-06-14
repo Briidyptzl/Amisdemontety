@@ -4,6 +4,9 @@
 
 .admin-body { background: var(--creme-50); }
 
+/* L'attribut hidden doit toujours l'emporter sur les display ci-dessous */
+[hidden] { display: none !important; }
+
 /* ——— Connexion ——— */
 .login-screen {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;

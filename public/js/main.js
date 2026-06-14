@@ -65,6 +65,10 @@ function renderFooter() {
           <div class="footer-script script">tous les âges, un même quartier</div>
         </div>
       </div>
+      <div class="footer-bottom">
+        <span>© ${new Date().getFullYear()} Les Amis de Montety</span>
+        <a href="admin.html"><span data-lucide="lock"></span> Espace administrateur</a>
+      </div>
     </div>`;
 }
 
