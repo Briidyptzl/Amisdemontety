@@ -108,12 +108,12 @@ async function init() {
 /* ----------------------------- Navigation des vues ----------------------------- */
 const VIEW_TITLES = {
   dashboard: 'Tableau de bord', events: 'Agenda', memberships: 'Adhésions',
-  messages: 'Messages', donations: 'Dons', listings: 'Entraide', settings: 'Réglages',
+  messages: 'Messages', donations: 'Dons', listings: 'Entraide', merchants: 'Commerçants', settings: 'Réglages',
 };
 function switchView(view) {
   $$('.dash-nav__item').forEach(b => b.classList.toggle('is-active', b.dataset.view === view));
   $('#view-title').textContent = VIEW_TITLES[view] || '';
-  const render = { dashboard: renderDashboard, events: renderEvents, memberships: renderMemberships, messages: renderMessages, donations: renderDonations, listings: renderAdminListings, settings: renderSettings }[view];
+  const render = { dashboard: renderDashboard, events: renderEvents, memberships: renderMemberships, messages: renderMessages, donations: renderDonations, listings: renderAdminListings, merchants: renderAdminMerchants, settings: renderSettings }[view];
   if (render) render();
 }
 
@@ -466,6 +466,152 @@ async function setListing(id, status) {
 async function delListing(id) {
   if (!confirm('Supprimer définitivement cette annonce ?')) return;
   try { await api('/admin/listings/' + id, { method: 'DELETE' }); toast('Annonce supprimée'); renderAdminListings(); }
+  catch (ex) { toast(ex.message, true); }
+}
+
+/* ----------------------------- Commerçants ----------------------------- */
+const M_TYPES_ADMIN = ['boulangerie', 'boucherie', 'epicerie', 'primeur', 'pizzeria', 'restaurant', 'bar', 'cafe', 'fleuriste', 'coiffeur', 'autre'];
+const M_TYPE_LBL = { boulangerie: 'Boulangerie', boucherie: 'Boucherie', epicerie: 'Épicerie', primeur: 'Primeur', pizzeria: 'Pizzeria', restaurant: 'Restaurant', bar: 'Bar', cafe: 'Café', fleuriste: 'Fleuriste', coiffeur: 'Coiffeur', autre: 'Autre commerce' };
+const KIND_LBL = { invendu: 'Invendu', promo: 'Promo', annonce: 'Annonce' };
+
+async function renderAdminMerchants() {
+  const c = $('#dash-content');
+  c.innerHTML = '<p class="muted">Chargement…</p>';
+  const [mers, posts] = await Promise.all([api('/admin/merchants'), api('/admin/merchant-posts')]);
+  c.innerHTML = `
+    <div class="panel" style="margin-bottom:24px">
+      <div class="panel-head">
+        <h3>Comptes commerçants (${mers.length})</h3>
+        <button class="btn btn--accent btn--sm" id="add-merchant"><span data-lucide="plus"></span> Ajouter un commerçant</button>
+      </div>
+      <div class="panel-body">
+        ${mers.length ? `<table class="table">
+          <thead><tr><th>Commerce</th><th>Type</th><th>Identifiant</th><th>État</th><th class="col-actions">Actions</th></tr></thead>
+          <tbody>${mers.map(merRow).join('')}</tbody></table>`
+          : `<div class="empty-state">Aucun commerçant. Cliquez sur « Ajouter un commerçant ».</div>`}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Annonces des commerçants (${posts.length})</h3></div>
+      <div class="panel-body">
+        ${posts.length ? `<table class="table">
+          <thead><tr><th>Annonce</th><th>Commerce</th><th>État</th><th class="col-actions">Actions</th></tr></thead>
+          <tbody>${posts.map(mPostRow).join('')}</tbody></table>`
+          : `<div class="empty-state">Aucune annonce publiée par les commerçants.</div>`}
+      </div>
+    </div>`;
+  $('#add-merchant').addEventListener('click', () => merchantModal());
+  $$('[data-edit]', c).forEach(b => b.addEventListener('click', () => merchantModal(mers.find(m => m.id == b.dataset.edit))));
+  $$('[data-pwd]', c).forEach(b => b.addEventListener('click', () => merchantPwdModal(b.dataset.pwd)));
+  $$('[data-delmer]', c).forEach(b => b.addEventListener('click', () => delMerchant(b.dataset.delmer)));
+  $$('[data-mphide]', c).forEach(b => b.addEventListener('click', () => setMPost(b.dataset.mphide, 'hidden')));
+  $$('[data-mpshow]', c).forEach(b => b.addEventListener('click', () => setMPost(b.dataset.mpshow, 'published')));
+  $$('[data-mpdel]', c).forEach(b => b.addEventListener('click', () => delMPost(b.dataset.mpdel)));
+  icons();
+}
+function merRow(m) {
+  return `<tr>
+    <td><div class="cell-title">${esc(m.name)}</div><div class="cell-sub">${esc(m.address || '')}</div></td>
+    <td><span class="badge badge--ocre">${esc(M_TYPE_LBL[m.type] || m.type)}</span><div class="cell-sub">${m.post_count} annonce(s)</div></td>
+    <td><code>${esc(m.slug)}</code></td>
+    <td>${m.active ? '<span class="badge badge--olive">Actif</span>' : '<span class="badge badge--neutral">Désactivé</span>'}</td>
+    <td class="col-actions">
+      <button class="icon-btn" data-pwd="${m.id}" title="Réinitialiser le mot de passe"><span data-lucide="key-round"></span></button>
+      <button class="icon-btn" data-edit="${m.id}" title="Modifier"><span data-lucide="pencil"></span></button>
+      <button class="icon-btn danger" data-delmer="${m.id}" title="Supprimer"><span data-lucide="trash-2"></span></button>
+    </td></tr>`;
+}
+function mPostRow(p) {
+  const isLive = p.status !== 'hidden';
+  return `<tr>
+    <td><span class="badge badge--ardoise">${esc(KIND_LBL[p.kind] || p.kind)}</span> <span class="cell-title">${esc(p.title)}</span>
+      ${p.price ? `<div class="cell-sub">${esc(p.price)}</div>` : ''}</td>
+    <td>${esc(p.merchant_name)}<div class="cell-sub">${fmtDate(p.created_at)}</div></td>
+    <td>${isLive ? '<span class="badge badge--olive">En ligne</span>' : '<span class="badge badge--neutral">Masquée</span>'}</td>
+    <td class="col-actions">
+      ${isLive ? `<button class="icon-btn" data-mphide="${p.id}" title="Masquer"><span data-lucide="eye-off"></span></button>`
+               : `<button class="icon-btn ok" data-mpshow="${p.id}" title="Publier"><span data-lucide="eye"></span></button>`}
+      <button class="icon-btn danger" data-mpdel="${p.id}" title="Supprimer"><span data-lucide="trash-2"></span></button>
+    </td></tr>`;
+}
+function merchantModal(m) {
+  const e = m || {};
+  const typeOpts = M_TYPES_ADMIN.map(t => `<option value="${t}" ${e.type === t ? 'selected' : ''}>${M_TYPE_LBL[t]}</option>`).join('');
+  openModal(`
+    <h3>${m ? 'Modifier' : 'Ajouter'} un commerçant</h3>
+    <form id="merchant-form">
+      <div class="field-row">
+        <div class="field"><label>Nom du commerce</label><input name="name" value="${esc(e.name || '')}" required /></div>
+        <div class="field"><label>Type</label><select name="type">${typeOpts}</select></div>
+      </div>
+      ${m ? `<div class="field"><label>Identifiant de connexion</label><input value="${esc(e.slug || '')}" disabled /><div class="hint">L'identifiant ne se modifie pas. Utilisez la clé pour changer le mot de passe.</div></div>`
+          : `<div class="field-row">
+               <div class="field"><label>Identifiant (login)</label><input name="slug" placeholder="boulangerie-martin" /><div class="hint">Laissez vide pour le générer depuis le nom.</div></div>
+               <div class="field"><label>Mot de passe</label><input name="password" type="text" placeholder="6 caractères min." required /></div>
+             </div>`}
+      <div class="field"><label>Description</label><textarea name="description">${esc(e.description || '')}</textarea></div>
+      <div class="field-row">
+        <div class="field"><label>Adresse</label><input name="address" value="${esc(e.address || '')}" placeholder="12 rue de Montety, Toulon" /></div>
+        <div class="field"><label>Téléphone</label><input name="phone" value="${esc(e.phone || '')}" placeholder="04 94 00 00 00" /></div>
+      </div>
+      ${m ? `<label style="display:flex; align-items:center; gap:8px; margin:4px 0 0"><input type="checkbox" name="active" ${e.active ? 'checked' : ''} style="width:auto" /> Compte actif</label>` : ''}
+      <div class="modal-actions">
+        <button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button>
+        <button type="submit" class="btn btn--accent btn--md">${m ? 'Enregistrer' : 'Créer le compte'}</button>
+      </div>
+    </form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#merchant-form').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const f = ev.target;
+    const payload = { name: f.name.value.trim(), type: f.type.value,
+      description: f.description.value.trim(), address: f.address.value.trim(), phone: f.phone.value.trim() };
+    try {
+      if (m) {
+        payload.active = f.active.checked ? 1 : 0;
+        await api('/admin/merchants/' + m.id, { method: 'PUT', body: JSON.stringify(payload) });
+        closeModal(); toast('Commerçant enregistré'); renderAdminMerchants();
+      } else {
+        payload.slug = f.slug.value.trim(); payload.password = f.password.value;
+        const r = await api('/admin/merchants', { method: 'POST', body: JSON.stringify(payload) });
+        closeModal();
+        alert('Compte créé.\n\nIdentifiant : ' + r.slug + '\nMot de passe : ' + payload.password + '\n\nTransmettez ces accès au commerçant.');
+        renderAdminMerchants();
+      }
+    } catch (ex) { toast(ex.message, true); }
+  });
+}
+function merchantPwdModal(id) {
+  openModal(`
+    <h3>Nouveau mot de passe</h3>
+    <form id="merchant-pwd-form">
+      <div class="field"><label>Mot de passe (6 caractères min.)</label><input name="password" type="text" required /></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button>
+        <button type="submit" class="btn btn--accent btn--md">Définir</button>
+      </div>
+    </form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#merchant-pwd-form').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const pwd = ev.target.password.value;
+    try { await api('/admin/merchants/' + id + '/password', { method: 'POST', body: JSON.stringify({ password: pwd }) });
+      closeModal(); alert('Nouveau mot de passe défini : ' + pwd + '\n\nTransmettez-le au commerçant.'); }
+    catch (ex) { toast(ex.message, true); }
+  });
+}
+async function delMerchant(id) {
+  if (!confirm('Supprimer ce commerçant et toutes ses annonces ?')) return;
+  try { await api('/admin/merchants/' + id, { method: 'DELETE' }); toast('Commerçant supprimé'); renderAdminMerchants(); }
+  catch (ex) { toast(ex.message, true); }
+}
+async function setMPost(id, status) {
+  try { await api('/admin/merchant-posts/' + id, { method: 'PATCH', body: JSON.stringify({ status }) }); renderAdminMerchants(); }
+  catch (ex) { toast(ex.message, true); }
+}
+async function delMPost(id) {
+  if (!confirm('Supprimer cette annonce ?')) return;
+  try { await api('/admin/merchant-posts/' + id, { method: 'DELETE' }); renderAdminMerchants(); }
   catch (ex) { toast(ex.message, true); }
 }
 

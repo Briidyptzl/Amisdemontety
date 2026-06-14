@@ -157,9 +157,14 @@ img { max-width: 100%; display: block; }
   font-family: var(--font-display); font-weight: 600; font-size: 1.15rem;
   color: var(--ardoise-800); line-height: 1;
 }
-.header-right { display: flex; align-items: center; gap: 28px; }
-.site-nav { display: flex; align-items: center; gap: 28px; }
+.header-right { display: flex; align-items: center; gap: 22px; }
+.site-nav { display: flex; align-items: center; gap: 19px; }
 .header-don { white-space: nowrap; }
+@media (max-width: 1080px) and (min-width: 881px) {
+  .site-header__inner { padding-left: 18px; padding-right: 18px; }
+  .site-nav { gap: 14px; }
+  .site-nav a { font-size: 0.9rem; }
+}
 .site-nav a {
   font-family: var(--font-body); font-size: 0.95rem; font-weight: 600;
   color: var(--encre-soft); text-decoration: none; padding: 4px 0;
@@ -284,6 +289,27 @@ img { max-width: 100%; display: block; }
 .listing-who svg, .listing-contact svg { width: 16px; height: 16px; color: var(--brique-500); flex: none; }
 .listing-contact a { color: var(--ardoise-700); font-weight: 600; word-break: break-word; }
 .listing-date { color: var(--color-text-faint); font-size: 0.82rem; }
+
+/* ——— Commerçants ——— */
+.m-post { display: flex; flex-direction: column; }
+.m-post h3 { font-size: 1.3rem; color: var(--ardoise-800); margin: 4px 0 8px; }
+.m-from { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ardoise-700); font-size: 0.92rem; }
+.m-from svg { width: 16px; height: 16px; color: var(--brique-500); }
+.m-body { margin: 0 0 12px; color: var(--color-text-muted); font-size: 0.96rem; white-space: pre-wrap; }
+.m-price { font-family: var(--font-body); font-weight: 700; font-size: 0.82rem; color: var(--brique-700); background: var(--brique-200); padding: 0.3em 0.7em; border-radius: var(--radius-pill); }
+.m-until { display: flex; align-items: center; gap: 8px; color: var(--olive-700); font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; }
+.m-until svg { width: 16px; height: 16px; }
+.m-date { margin-top: auto; color: var(--color-text-faint); font-size: 0.82rem; }
+
+.m-card h3 { font-size: 1.3rem; color: var(--ardoise-800); margin: 10px 0 8px; }
+.m-meta { display: flex; flex-direction: column; gap: 6px; font-size: 0.92rem; color: var(--encre-soft); }
+.m-meta div { display: flex; align-items: center; gap: 8px; }
+.m-meta svg { width: 16px; height: 16px; color: var(--brique-500); flex: none; }
+.m-meta a { color: var(--ardoise-700); font-weight: 600; }
+
+.m-post-form { background: var(--creme-100); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 22px; }
+.m-own { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--creme-200); }
+.m-own:last-child { border-bottom: none; }
 
 /* ——— Icônes Lucide ——— */
 .lucide, [data-lucide] svg { stroke-width: 1.8; }

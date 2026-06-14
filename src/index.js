@@ -98,6 +98,37 @@ function sessionCookie(token, maxAge) {
   return parts.join('; ');
 }
 
+/* ----------------------------- sessions commerçant ----------------------------- */
+const MERCHANT_COOKIE = 'montety_merchant';
+async function makeMerchantSession(env, merchant) {
+  const secret = await getSessionSecret(env);
+  if (!secret) throw new Error('session_secret manquant');
+  const payload = b64urlEncode(JSON.stringify({
+    mid: merchant.id, slug: merchant.slug, name: merchant.name, role: 'merchant',
+    exp: Math.floor(Date.now() / 1000) + SESSION_TTL,
+  }));
+  const sig = await hmacHex(payload, secret);
+  return `${payload}.${sig}`;
+}
+async function readMerchantSession(env, request) {
+  const cookie = request.headers.get('Cookie') || '';
+  const m = cookie.match(new RegExp('(?:^|;\\s*)' + MERCHANT_COOKIE + '=([^;]+)'));
+  if (!m) return null;
+  const token = m[1], dot = token.lastIndexOf('.');
+  if (dot < 0) return null;
+  const payload = token.slice(0, dot), sig = token.slice(dot + 1);
+  const secret = await getSessionSecret(env);
+  if (!secret) return null;
+  if (!timingSafeEqual(sig, await hmacHex(payload, secret))) return null;
+  let data;
+  try { data = JSON.parse(b64urlDecode(payload)); } catch { return null; }
+  if (!data || data.role !== 'merchant' || !data.exp || data.exp < Math.floor(Date.now() / 1000)) return null;
+  return data;
+}
+function merchantCookie(token, maxAge) {
+  return [`${MERCHANT_COOKIE}=${token}`, 'Path=/', 'HttpOnly', 'Secure', 'SameSite=Strict', `Max-Age=${maxAge}`].join('; ');
+}
+
 /* ----------------------------- routeur ----------------------------- */
 export default {
   async fetch(request, env) {
@@ -190,6 +221,45 @@ async function handleApi(request, env, url) {
        VALUES (?,?,?,?,?,?,?, 'published')`)
       .bind(type, category, title, description, author, contact, area).run();
     return json({ ok: true });
+  }
+
+  // Commerçants — vitrine publique
+  if (path === '/api/merchants' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT id, name, type, slug, description, address, phone FROM merchants WHERE active = 1 ORDER BY name`).all();
+    return json(results || []);
+  }
+  if (path === '/api/merchant-posts' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT p.id, p.merchant_id, p.kind, p.title, p.body, p.price, p.available_until, p.created_at,
+              m.name AS merchant_name, m.type AS merchant_type
+         FROM merchant_posts p JOIN merchants m ON m.id = p.merchant_id
+        WHERE p.status = 'published' AND m.active = 1
+        ORDER BY p.created_at DESC, p.id DESC`).all();
+    return json(results || []);
+  }
+
+  /* ===================== Espace commerçant ===================== */
+  if (path === '/api/merchant/login' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const login = clean(b.login, 80).toLowerCase(), password = clean(b.password, 200);
+    const mer = await env.DB.prepare(
+      `SELECT id, name, slug, pass_hash, pass_salt, pass_iter, active FROM merchants WHERE lower(slug) = ?`).bind(login).first();
+    const salt = mer ? mer.pass_salt : '00000000000000000000000000000000';
+    const iter = mer ? mer.pass_iter : 100000;
+    const computed = await pbkdf2Hex(password, salt, iter);
+    if (!mer || !mer.active || !timingSafeEqual(computed, mer.pass_hash))
+      return json({ error: 'Identifiant ou mot de passe incorrect.' }, 401);
+    const token = await makeMerchantSession(env, mer);
+    return json({ ok: true, name: mer.name, slug: mer.slug }, 200, { 'Set-Cookie': merchantCookie(token, SESSION_TTL) });
+  }
+  if (path === '/api/merchant/logout' && method === 'POST') {
+    return json({ ok: true }, 200, { 'Set-Cookie': merchantCookie('', 0) });
+  }
+  if (path.startsWith('/api/merchant/')) {
+    const ms = await readMerchantSession(env, request);
+    if (!ms) return json({ error: 'Non authentifié' }, 401);
+    return handleMerchant(request, env, url, method, ms);
   }
 
   /* ===================== Authentification ===================== */
@@ -414,7 +484,133 @@ async function handleAdmin(request, env, url, method, session) {
     return json({ ok: true });
   }
 
+  /* ----- Commerçants (comptes) ----- */
+  if (path === '/api/admin/merchants' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT m.id, m.name, m.type, m.slug, m.description, m.address, m.phone, m.active, m.created_at,
+              (SELECT COUNT(*) FROM merchant_posts p WHERE p.merchant_id = m.id) AS post_count
+         FROM merchants m ORDER BY m.name`).all();
+    return json(results || []);
+  }
+  if (path === '/api/admin/merchants' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 120), type = clean(b.type, 40);
+    const slug = slugify(b.slug || b.name), password = clean(b.password, 200);
+    if (!name || !type || !slug) return json({ error: 'Nom, type et identifiant sont requis.' }, 400);
+    if (password.length < 6) return json({ error: 'Mot de passe : 6 caractères minimum.' }, 400);
+    const exists = await env.DB.prepare(`SELECT id FROM merchants WHERE slug = ?`).bind(slug).first();
+    if (exists) return json({ error: 'Cet identifiant est déjà pris.' }, 409);
+    const { hash, salt, iter } = await hashPassword(password);
+    const r = await env.DB.prepare(
+      `INSERT INTO merchants (name, type, slug, description, address, phone, pass_hash, pass_salt, pass_iter, active)
+       VALUES (?,?,?,?,?,?,?,?,?,1)`).bind(
+      name, type, slug, clean(b.description, 1000), clean(b.address, 200), clean(b.phone, 40), hash, salt, iter).run();
+    return json({ ok: true, id: r.meta.last_row_id, slug });
+  }
+  const merMatch = path.match(/^\/api\/admin\/merchants\/(\d+)$/);
+  if (merMatch && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 120), type = clean(b.type, 40);
+    if (!name || !type) return json({ error: 'Nom et type requis.' }, 400);
+    await env.DB.prepare(
+      `UPDATE merchants SET name=?, type=?, description=?, address=?, phone=?, active=? WHERE id=?`).bind(
+      name, type, clean(b.description, 1000), clean(b.address, 200), clean(b.phone, 40),
+      b.active === 0 ? 0 : 1, Number(merMatch[1])).run();
+    return json({ ok: true });
+  }
+  if (merMatch && method === 'DELETE') {
+    const id = Number(merMatch[1]);
+    await env.DB.prepare(`DELETE FROM merchant_posts WHERE merchant_id = ?`).bind(id).run();
+    await env.DB.prepare(`DELETE FROM merchants WHERE id = ?`).bind(id).run();
+    return json({ ok: true });
+  }
+  const merPwMatch = path.match(/^\/api\/admin\/merchants\/(\d+)\/password$/);
+  if (merPwMatch && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const password = clean(b.password, 200);
+    if (password.length < 6) return json({ error: 'Mot de passe : 6 caractères minimum.' }, 400);
+    const { hash, salt, iter } = await hashPassword(password);
+    await env.DB.prepare(`UPDATE merchants SET pass_hash=?, pass_salt=?, pass_iter=? WHERE id=?`)
+      .bind(hash, salt, iter, Number(merPwMatch[1])).run();
+    return json({ ok: true });
+  }
+
+  /* ----- Commerçants (modération des annonces) ----- */
+  if (path === '/api/admin/merchant-posts' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT p.*, m.name AS merchant_name FROM merchant_posts p JOIN merchants m ON m.id = p.merchant_id
+        ORDER BY p.created_at DESC, p.id DESC`).all();
+    return json(results || []);
+  }
+  const mpMatch = path.match(/^\/api\/admin\/merchant-posts\/(\d+)$/);
+  if (mpMatch && method === 'PATCH') {
+    const b = await request.json().catch(() => ({}));
+    const status = ['published', 'hidden'].includes(b.status) ? b.status : 'published';
+    await env.DB.prepare(`UPDATE merchant_posts SET status=? WHERE id=?`).bind(status, Number(mpMatch[1])).run();
+    return json({ ok: true });
+  }
+  if (mpMatch && method === 'DELETE') {
+    await env.DB.prepare(`DELETE FROM merchant_posts WHERE id=?`).bind(Number(mpMatch[1])).run();
+    return json({ ok: true });
+  }
+
   return json({ error: 'Route inconnue' }, 404);
+}
+
+async function handleMerchant(request, env, url, method, session) {
+  const path = url.pathname;
+  const mid = session.mid;
+
+  if (path === '/api/merchant/me' && method === 'GET') {
+    const m = await env.DB.prepare(
+      `SELECT id, name, type, slug, description, address, phone FROM merchants WHERE id = ?`).bind(mid).first();
+    if (!m) return json({ error: 'Compte introuvable' }, 404);
+    return json(m);
+  }
+  if (path === '/api/merchant/posts' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT * FROM merchant_posts WHERE merchant_id = ? ORDER BY created_at DESC, id DESC`).bind(mid).all();
+    return json(results || []);
+  }
+  if (path === '/api/merchant/posts' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const kind = ['annonce', 'invendu', 'promo'].includes(b.kind) ? b.kind : 'annonce';
+    const title = clean(b.title, 120), body = clean(b.body, 2000);
+    const price = clean(b.price, 60), until = clean(b.available_until, 120);
+    if (!title) return json({ error: 'Le titre est requis.' }, 400);
+    await env.DB.prepare(
+      `INSERT INTO merchant_posts (merchant_id, kind, title, body, price, available_until) VALUES (?,?,?,?,?,?)`)
+      .bind(mid, kind, title, body, price || null, until || null).run();
+    return json({ ok: true });
+  }
+  const pMatch = path.match(/^\/api\/merchant\/posts\/(\d+)$/);
+  if (pMatch && method === 'DELETE') {
+    await env.DB.prepare(`DELETE FROM merchant_posts WHERE id = ? AND merchant_id = ?`)
+      .bind(Number(pMatch[1]), mid).run();
+    return json({ ok: true });
+  }
+  if (path === '/api/merchant/change-password' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const current = clean(b.current, 200), next = clean(b.next, 200);
+    if (next.length < 6) return json({ error: 'Nouveau mot de passe : 6 caractères minimum.' }, 400);
+    const m = await env.DB.prepare(`SELECT pass_hash, pass_salt, pass_iter FROM merchants WHERE id = ?`).bind(mid).first();
+    if (!m || !timingSafeEqual(await pbkdf2Hex(current, m.pass_salt, m.pass_iter), m.pass_hash))
+      return json({ error: 'Mot de passe actuel incorrect.' }, 401);
+    const salt = bytesToHex(crypto.getRandomValues(new Uint8Array(16))), iter = 100000;
+    await env.DB.prepare(`UPDATE merchants SET pass_hash=?, pass_salt=?, pass_iter=? WHERE id=?`)
+      .bind(await pbkdf2Hex(next, salt, iter), salt, iter, mid).run();
+    return json({ ok: true });
+  }
+  return json({ error: 'Route inconnue' }, 404);
+}
+
+async function hashPassword(password) {
+  const salt = bytesToHex(crypto.getRandomValues(new Uint8Array(16))), iter = 100000;
+  return { hash: await pbkdf2Hex(password, salt, iter), salt, iter };
+}
+function slugify(s) {
+  return clean(s, 80).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
 }
 
 function validateEvent(b) {

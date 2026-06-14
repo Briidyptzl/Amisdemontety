@@ -84,8 +84,38 @@ CREATE TABLE IF NOT EXISTS listings (
   created_at  TEXT DEFAULT (datetime('now'))
 );
 
+-- Commerçants du quartier (comptes protégés par mot de passe haché PBKDF2)
+CREATE TABLE IF NOT EXISTS merchants (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL,
+  type        TEXT NOT NULL,                 -- boulangerie / boucherie / epicerie / bar / pizzeria / ...
+  slug        TEXT NOT NULL UNIQUE,          -- identifiant de connexion
+  description TEXT,
+  address     TEXT,
+  phone       TEXT,
+  pass_hash   TEXT NOT NULL,
+  pass_salt   TEXT NOT NULL,
+  pass_iter   INTEGER NOT NULL DEFAULT 100000,
+  active      INTEGER NOT NULL DEFAULT 1,
+  created_at  TEXT DEFAULT (datetime('now'))
+);
+
+-- Annonces des commerçants (invendus / promos / annonces)
+CREATE TABLE IF NOT EXISTS merchant_posts (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  merchant_id     INTEGER NOT NULL,
+  kind            TEXT NOT NULL DEFAULT 'annonce', -- annonce / invendu / promo
+  title           TEXT NOT NULL,
+  body            TEXT,
+  price           TEXT,
+  available_until TEXT,
+  status          TEXT NOT NULL DEFAULT 'published', -- published / hidden
+  created_at      TEXT DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_events_published   ON events (published, starts_at);
 CREATE INDEX IF NOT EXISTS idx_contact_read       ON contact_messages (read, created_at);
 CREATE INDEX IF NOT EXISTS idx_memberships_status ON memberships (status, created_at);
 CREATE INDEX IF NOT EXISTS idx_donations_date     ON donations (donated_at);
 CREATE INDEX IF NOT EXISTS idx_listings_status    ON listings (status, created_at);
+CREATE INDEX IF NOT EXISTS idx_mposts_merchant    ON merchant_posts (merchant_id, status, created_at);
