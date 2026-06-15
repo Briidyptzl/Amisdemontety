@@ -737,7 +737,7 @@ async function renderAdminMerchants() {
     </div>`;
   $('#add-merchant').addEventListener('click', () => merchantModal());
   $$('[data-edit]', c).forEach(b => b.addEventListener('click', () => merchantModal(mers.find(m => m.id == b.dataset.edit))));
-  $$('[data-pwd]', c).forEach(b => b.addEventListener('click', () => merchantPwdModal(b.dataset.pwd)));
+  $$('[data-pwd]', c).forEach(b => b.addEventListener('click', () => merchantReset(b.dataset.pwd, mers.find(m => m.id == b.dataset.pwd))));
   $$('[data-delmer]', c).forEach(b => b.addEventListener('click', () => delMerchant(b.dataset.delmer)));
   $$('[data-mphide]', c).forEach(b => b.addEventListener('click', () => setMPost(b.dataset.mphide, 'hidden')));
   $$('[data-mpshow]', c).forEach(b => b.addEventListener('click', () => setMPost(b.dataset.mpshow, 'published')));
@@ -751,7 +751,7 @@ function merRow(m) {
     <td><code>${esc(m.slug)}</code></td>
     <td>${m.active ? '<span class="badge badge--olive">Actif</span>' : '<span class="badge badge--neutral">Désactivé</span>'}</td>
     <td class="col-actions">
-      <button class="icon-btn" data-pwd="${m.id}" title="Réinitialiser le mot de passe"><span data-lucide="key-round"></span></button>
+      <button class="icon-btn" data-pwd="${m.id}" title="Envoyer un lien de réinitialisation"><span data-lucide="mail"></span></button>
       <button class="icon-btn" data-edit="${m.id}" title="Modifier"><span data-lucide="pencil"></span></button>
       <button class="icon-btn danger" data-delmer="${m.id}" title="Supprimer"><span data-lucide="trash-2"></span></button>
     </td></tr>`;
@@ -779,10 +779,13 @@ function merchantModal(m) {
         <div class="field"><label>Nom du commerce</label><input name="name" value="${esc(e.name || '')}" required /></div>
         <div class="field"><label>Type</label><select name="type">${typeOpts}</select></div>
       </div>
-      ${m ? `<div class="field"><label>Identifiant de connexion</label><input value="${esc(e.slug || '')}" disabled /><div class="hint">L'identifiant ne se modifie pas. Utilisez la clé pour changer le mot de passe.</div></div>`
+      ${m ? `<div class="field-row">
+               <div class="field"><label>Identifiant de connexion</label><input value="${esc(e.slug || '')}" disabled /><div class="hint">L'identifiant ne se modifie pas.</div></div>
+               <div class="field"><label>E-mail du commerçant</label><input name="email" type="email" value="${esc(e.email || '')}" placeholder="contact@commerce.fr" /><div class="hint">Sert à l'envoi du lien de mot de passe.</div></div>
+             </div>`
           : `<div class="field-row">
                <div class="field"><label>Identifiant (login)</label><input name="slug" placeholder="boulangerie-martin" /><div class="hint">Laissez vide pour le générer depuis le nom.</div></div>
-               <div class="field"><label>Mot de passe</label><input name="password" type="text" placeholder="6 caractères min." required /></div>
+               <div class="field"><label>E-mail du commerçant</label><input name="email" type="email" placeholder="contact@commerce.fr" required /><div class="hint">Le commerçant recevra un lien pour définir son mot de passe.</div></div>
              </div>`}
       <div class="field"><label>Description</label><textarea name="description">${esc(e.description || '')}</textarea></div>
       <div class="field-row">
@@ -802,7 +805,7 @@ function merchantModal(m) {
   $('#merchant-form').addEventListener('submit', async ev => {
     ev.preventDefault();
     const f = ev.target;
-    const payload = { name: f.name.value.trim(), type: f.type.value,
+    const payload = { name: f.name.value.trim(), type: f.type.value, email: f.email.value.trim(),
       description: f.description.value.trim(), address: f.address.value.trim(), phone: f.phone.value.trim() };
     try {
       if (m) {
@@ -811,33 +814,27 @@ function merchantModal(m) {
         await api('/admin/merchants/' + m.id, { method: 'PUT', body: JSON.stringify(payload) });
         closeModal(); toast('Commerçant enregistré'); renderAdminMerchants();
       } else {
-        payload.slug = f.slug.value.trim(); payload.password = f.password.value;
+        payload.slug = f.slug.value.trim();
         const r = await api('/admin/merchants', { method: 'POST', body: JSON.stringify(payload) });
         closeModal();
-        alert('Compte créé.\n\nIdentifiant : ' + r.slug + '\nMot de passe : ' + payload.password + '\n\nTransmettez ces accès au commerçant.');
+        alert('Compte créé.\n\nIdentifiant de connexion : ' + r.slug + '\n\n' + (r.emailed
+          ? 'Un e-mail vient d\'être envoyé à ' + payload.email + ' pour que le commerçant définisse lui-même son mot de passe.'
+          : 'ATTENTION : l\'e-mail n\'a pas pu être envoyé (' + (r.warning || 'configuration e-mail') + '). Utilisez « Réinitialiser » plus tard.'));
         renderAdminMerchants();
       }
     } catch (ex) { toast(ex.message, true); }
   });
 }
-function merchantPwdModal(id) {
-  openModal(`
-    <h3>Nouveau mot de passe</h3>
-    <form id="merchant-pwd-form">
-      <div class="field"><label>Mot de passe (6 caractères min.)</label><input name="password" type="text" required /></div>
-      <div class="modal-actions">
-        <button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button>
-        <button type="submit" class="btn btn--accent btn--md">Définir</button>
-      </div>
-    </form>`);
-  $('#modal-cancel').addEventListener('click', closeModal);
-  $('#merchant-pwd-form').addEventListener('submit', async ev => {
-    ev.preventDefault();
-    const pwd = ev.target.password.value;
-    try { await api('/admin/merchants/' + id + '/password', { method: 'POST', body: JSON.stringify({ password: pwd }) });
-      closeModal(); alert('Nouveau mot de passe défini : ' + pwd + '\n\nTransmettez-le au commerçant.'); }
-    catch (ex) { toast(ex.message, true); }
-  });
+async function merchantReset(id, m) {
+  if (!m || !m.email) {
+    toast('Renseignez d\'abord l\'e-mail du commerçant (Modifier).', true);
+    return;
+  }
+  if (!confirm('Envoyer à ' + m.email + ' un lien pour redéfinir le mot de passe ?\n\nVous ne choisissez pas le mot de passe : le commerçant le définit lui-même.')) return;
+  try {
+    await api('/admin/merchants/' + id + '/reset', { method: 'POST' });
+    toast('Lien de réinitialisation envoyé à ' + m.email);
+  } catch (ex) { toast(ex.message, true); }
 }
 async function delMerchant(id) {
   if (!confirm('Supprimer ce commerçant et toutes ses annonces ?')) return;

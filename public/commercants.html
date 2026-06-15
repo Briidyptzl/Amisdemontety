@@ -32,7 +32,7 @@
       <!-- Connexion -->
       <div id="merchant-login">
         <h2 style="font-size:1.5rem; margin:0 0 6px">Espace commerçant</h2>
-        <p class="muted" style="margin:0 0 20px">Connectez-vous avec l'identifiant et le mot de passe fournis par l'association.</p>
+        <p class="muted" style="margin:0 0 20px">Connectez-vous avec votre identifiant. Le mot de passe se définit via le lien reçu par e-mail.</p>
         <form id="merchant-login-form" novalidate>
           <div class="field-row">
             <div class="field"><label for="m-login">Identifiant</label><input id="m-login" name="login" autocomplete="username" required /></div>
@@ -43,6 +43,7 @@
             <button class="btn btn--accent btn--md" type="submit" id="m-login-btn">Se connecter</button>
             <button class="btn btn--ghost btn--md" type="button" id="m-login-cancel">Fermer</button>
           </div>
+          <p style="margin:12px 0 0"><a href="#" id="m-forgot-link" style="font-size:.9rem; color:var(--color-text-muted)">Mot de passe oublié ?</a></p>
         </form>
       </div>
       <!-- Tableau de bord (rempli par JS) -->

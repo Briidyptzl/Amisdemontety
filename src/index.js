@@ -365,6 +365,15 @@ async function handleApi(request, env, url) {
   if (path === '/api/merchant/logout' && method === 'POST') {
     return json({ ok: true }, 200, { 'Set-Cookie': merchantCookie('', 0) });
   }
+  if (path === '/api/merchant/forgot' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const email = clean(b.email, 254).toLowerCase();
+    if (isValidEmail(email)) {
+      const mer = await env.DB.prepare(`SELECT id, email, name FROM merchants WHERE lower(email)=?`).bind(email).first();
+      if (mer) { try { await sendSetPasswordMail(env, 'merchant', mer, 'reset', url.origin); } catch (_) {} }
+    }
+    return json({ ok: true });
+  }
   if (path.startsWith('/api/merchant/')) {
     const ms = await readMerchantSession(env, request);
     if (!ms) return json({ error: 'Non authentifié' }, 401);
@@ -666,7 +675,7 @@ async function handleAdmin(request, env, url, method, session) {
   /* ----- Commerçants (comptes) ----- */
   if (path === '/api/admin/merchants' && method === 'GET') {
     const { results } = await env.DB.prepare(
-      `SELECT m.id, m.name, m.type, m.slug, m.description, m.address, m.phone, m.active, m.created_at,
+      `SELECT m.id, m.name, m.type, m.slug, m.email, m.description, m.address, m.phone, m.active, m.created_at,
               (SELECT COUNT(*) FROM merchant_posts p WHERE p.merchant_id = m.id) AS post_count
          FROM merchants m ORDER BY m.name`).all();
     return json(results || []);
@@ -674,17 +683,23 @@ async function handleAdmin(request, env, url, method, session) {
   if (path === '/api/admin/merchants' && method === 'POST') {
     const b = await request.json().catch(() => ({}));
     const name = clean(b.name, 120), type = clean(b.type, 40);
-    const slug = slugify(b.slug || b.name), password = clean(b.password, 200);
+    const slug = slugify(b.slug || b.name), email = clean(b.email, 254).toLowerCase();
     if (!name || !type || !slug) return json({ error: 'Nom, type et identifiant sont requis.' }, 400);
-    if (password.length < 6) return json({ error: 'Mot de passe : 6 caractères minimum.' }, 400);
+    if (!isValidEmail(email)) return json({ error: 'Un e-mail valide est requis (le commerçant définit son mot de passe par lien).' }, 400);
     const exists = await env.DB.prepare(`SELECT id FROM merchants WHERE slug = ?`).bind(slug).first();
     if (exists) return json({ error: 'Cet identifiant est déjà pris.' }, 409);
-    const { hash, salt, iter } = await hashPassword(password);
+    // mot de passe aléatoire inutilisable : le compte s'active uniquement par le lien d'invitation
+    const { hash, salt, iter } = await hashPassword(bytesToHex(crypto.getRandomValues(new Uint8Array(24))));
     const r = await env.DB.prepare(
-      `INSERT INTO merchants (name, type, slug, description, address, phone, pass_hash, pass_salt, pass_iter, active)
-       VALUES (?,?,?,?,?,?,?,?,?,1)`).bind(
-      name, type, slug, clean(b.description, 1000), clean(b.address, 200), clean(b.phone, 40), hash, salt, iter).run();
-    return json({ ok: true, id: r.meta.last_row_id, slug });
+      `INSERT INTO merchants (name, type, slug, email, description, address, phone, pass_hash, pass_salt, pass_iter, active)
+       VALUES (?,?,?,?,?,?,?,?,?,?,1)`).bind(
+      name, type, slug, email, clean(b.description, 1000), clean(b.address, 200), clean(b.phone, 40), hash, salt, iter).run();
+    try {
+      await sendSetPasswordMail(env, 'merchant', { id: r.meta.last_row_id, email, name }, 'invite', url.origin);
+      return json({ ok: true, id: r.meta.last_row_id, slug, emailed: true });
+    } catch (e) {
+      return json({ ok: true, id: r.meta.last_row_id, slug, emailed: false, warning: String(e.message || e) });
+    }
   }
   if (path === '/api/admin/upload' && method === 'POST') {
     return handleUpload(request, env, 'admin');
@@ -694,9 +709,11 @@ async function handleAdmin(request, env, url, method, session) {
     const b = await request.json().catch(() => ({}));
     const name = clean(b.name, 120), type = clean(b.type, 40);
     if (!name || !type) return json({ error: 'Nom et type requis.' }, 400);
+    const email = b.email === undefined ? null : clean(b.email, 254).toLowerCase();
+    if (email && !isValidEmail(email)) return json({ error: 'E-mail invalide.' }, 400);
     await env.DB.prepare(
-      `UPDATE merchants SET name=?, type=?, description=?, address=?, phone=?, active=?, photo_key=COALESCE(?, photo_key) WHERE id=?`).bind(
-      name, type, clean(b.description, 1000), clean(b.address, 200), clean(b.phone, 40),
+      `UPDATE merchants SET name=?, type=?, email=COALESCE(?, email), description=?, address=?, phone=?, active=?, photo_key=COALESCE(?, photo_key) WHERE id=?`).bind(
+      name, type, email, clean(b.description, 1000), clean(b.address, 200), clean(b.phone, 40),
       b.active === 0 ? 0 : 1, b.photo_key === undefined ? null : (clean(b.photo_key, 200) || null), Number(merMatch[1])).run();
     return json({ ok: true });
   }
@@ -706,15 +723,14 @@ async function handleAdmin(request, env, url, method, session) {
     await env.DB.prepare(`DELETE FROM merchants WHERE id = ?`).bind(id).run();
     return json({ ok: true });
   }
-  const merPwMatch = path.match(/^\/api\/admin\/merchants\/(\d+)\/password$/);
-  if (merPwMatch && method === 'POST') {
-    const b = await request.json().catch(() => ({}));
-    const password = clean(b.password, 200);
-    if (password.length < 6) return json({ error: 'Mot de passe : 6 caractères minimum.' }, 400);
-    const { hash, salt, iter } = await hashPassword(password);
-    await env.DB.prepare(`UPDATE merchants SET pass_hash=?, pass_salt=?, pass_iter=? WHERE id=?`)
-      .bind(hash, salt, iter, Number(merPwMatch[1])).run();
-    return json({ ok: true });
+  // Réinitialisation : envoie un lien au commerçant (aucun admin ne fixe son mot de passe)
+  const merReset = path.match(/^\/api\/admin\/merchants\/(\d+)\/reset$/);
+  if (merReset && method === 'POST') {
+    const m = await env.DB.prepare(`SELECT id, email, name FROM merchants WHERE id=?`).bind(Number(merReset[1])).first();
+    if (!m) return json({ error: 'Compte introuvable.' }, 404);
+    if (!m.email || !isValidEmail(m.email)) return json({ error: "Ce commerçant n'a pas d'e-mail valide. Renseignez-le d'abord." }, 400);
+    try { await sendSetPasswordMail(env, 'merchant', m, 'reset', url.origin); return json({ ok: true, emailed: true }); }
+    catch (e) { return json({ error: String(e.message || e) }, 502); }
   }
 
   /* ----- Commerçants (modération des annonces) ----- */

@@ -314,6 +314,15 @@ function initMerchantAuth() {
     } catch (ex) { err.textContent = ex.message; err.hidden = false; }
     finally { btn.disabled = false; btn.textContent = 'Se connecter'; }
   });
+  const forgot = document.getElementById('m-forgot-link');
+  if (forgot) forgot.addEventListener('click', async e => {
+    e.preventDefault();
+    const email = prompt('Entrez l\'e-mail associé à votre compte commerçant. Vous recevrez un lien pour redéfinir votre mot de passe.');
+    if (!email) return;
+    try { await mApi('/merchant/forgot', { method: 'POST', body: JSON.stringify({ email: email.trim() }) }); }
+    catch (_) {}
+    alert('Si un compte correspond à cet e-mail, un lien de réinitialisation vient d\'être envoyé.');
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {

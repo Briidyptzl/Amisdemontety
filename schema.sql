@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS merchants (
   name        TEXT NOT NULL,
   type        TEXT NOT NULL,                 -- boulangerie / boucherie / epicerie / bar / pizzeria / ...
   slug        TEXT NOT NULL UNIQUE,          -- identifiant de connexion
+  email       TEXT,                          -- e-mail du commerçant (invitation / réinitialisation par lien)
   description TEXT,
   address     TEXT,
   phone       TEXT,
@@ -193,7 +194,9 @@ CREATE TABLE IF NOT EXISTS bar_managers (
   pass_hash TEXT NOT NULL, pass_salt TEXT NOT NULL, pass_iter INTEGER NOT NULL DEFAULT 100000,
   active INTEGER NOT NULL DEFAULT 1, created_at TEXT DEFAULT (datetime('now'))
 );
--- auth_tokens.account_type ('admin' | 'bar' | 'merchant') généralise les jetons.
+-- auth_tokens.account_type ('admin' | 'bar' | 'merchant') généralise les jetons :
+-- admins, bar_managers ET merchants définissent leur mot de passe par lien e-mail
+-- (aucun gestionnaire ne fixe le mot de passe d'un autre compte).
 -- Consignes du chef de bar : settings 'bar_consignes'.
 
 -- Bar associatif : produits & stock, ventes (recettes → comptabilité 531/706)
