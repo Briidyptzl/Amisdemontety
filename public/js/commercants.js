@@ -298,8 +298,9 @@ function ownPostRow(p) {
   </div>`;
 }
 
+function openMerchantSpace() { showMerchant(true); refreshMerchantState(); }
+
 function initMerchantAuth() {
-  document.getElementById('toggle-merchant').addEventListener('click', () => { showMerchant(true); refreshMerchantState(); });
   document.getElementById('m-login-cancel').addEventListener('click', () => showMerchant(false));
   document.getElementById('merchant-login-form').addEventListener('submit', async e => {
     e.preventDefault();
@@ -329,4 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initPostFilters();
   initMerchantAuth();
   loadPublic();
+  // Accès direct à l'espace commerçant via le raccourci du pied de page (#connexion)
+  if (location.hash === '#connexion') openMerchantSpace();
 });
+window.addEventListener('hashchange', () => { if (location.hash === '#connexion') openMerchantSpace(); });
