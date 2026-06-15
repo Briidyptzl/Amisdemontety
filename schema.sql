@@ -184,6 +184,25 @@ CREATE TABLE IF NOT EXISTS plan_levels (
 );
 -- devis.level_id référence l'étage où la punaise est posée (plan_x/plan_y en %).
 
+-- Bar associatif : produits & stock, ventes (recettes → comptabilité 531/706)
+CREATE TABLE IF NOT EXISTS bar_products (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL, price REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0,
+  unit TEXT, sort INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS bar_sales (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  sdate TEXT NOT NULL, total REAL NOT NULL DEFAULT 0, note TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS bar_sale_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  sale_id INTEGER NOT NULL, product_id INTEGER, name TEXT,
+  qty REAL NOT NULL DEFAULT 1, unit_price REAL NOT NULL DEFAULT 0
+);
+-- Vitrine du bar : settings 'bar_description', 'bar_hours'.
+
 -- Modèles d'e-mails et d'attestation fiscale (éditables dans l'admin)
 CREATE TABLE IF NOT EXISTS templates (
   key        TEXT PRIMARY KEY,              -- password_invite / password_reset / membership_welcome / contact_ack / thank_you / attestation_don

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Le bar — Les Amis de Montety</title>
+<meta name="description" content="Le bar associatif du quartier de Montety, à Toulon : un café le matin, un verre le soir, des moments partagés entre voisins." />
+<link rel="icon" href="assets/logo-montety.png" />
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/site.css" />
+</head>
+<body data-page="bar">
+
+<header class="site-header" data-header></header>
+
+<main>
+  <section class="hero">
+    <div class="hero__inner">
+      <div>
+        <span class="eyebrow">Le bar du quartier</span>
+        <h1>Le bar des Amis de Montety</h1>
+        <p id="bar-desc">On se retrouve autour d'un verre…</p>
+        <p class="script" id="bar-hours" style="font-size:1.4rem; color:var(--brique-600); margin-top:8px"></p>
+      </div>
+      <div>
+        <div class="medallion"><img src="assets/logo-montety.png" alt="" /></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="container section">
+    <div class="section-head"><span class="eyebrow">La carte</span><h2>Notre carte</h2></div>
+    <div class="grid-3" id="bar-menu"><p style="color:var(--color-text-muted)">Chargement de la carte…</p></div>
+    <p class="form-note" style="margin-top:28px">Les bénéfices du bar financent les actions de l'association. Merci de votre soutien&nbsp;!</p>
+  </section>
+</main>
+
+<footer class="site-footer" data-footer></footer>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="js/main.js"></script>
+<script src="js/bar.js"></script>
+</body>
+</html>

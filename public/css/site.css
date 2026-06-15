@@ -158,13 +158,15 @@ img { max-width: 100%; display: block; }
   font-family: var(--font-display); font-weight: 600; font-size: 1.15rem;
   color: var(--ardoise-800); line-height: 1;
 }
-.header-right { display: flex; align-items: center; gap: 22px; }
-.site-nav { display: flex; align-items: center; gap: 19px; }
+.header-right { display: flex; align-items: center; gap: 18px; }
+.site-nav { display: flex; align-items: center; gap: 15px; }
 .header-don { white-space: nowrap; }
-@media (max-width: 1080px) and (min-width: 881px) {
-  .site-header__inner { padding-left: 18px; padding-right: 18px; }
-  .site-nav { gap: 14px; }
-  .site-nav a { font-size: 0.9rem; }
+@media (max-width: 1160px) and (min-width: 881px) {
+  .site-header__inner { padding-left: 16px; padding-right: 16px; }
+  .header-right { gap: 12px; }
+  .site-nav { gap: 11px; }
+  .site-nav a { font-size: 0.88rem; }
+  .brand span { font-size: 1.05rem; }
 }
 .site-nav a {
   font-family: var(--font-body); font-size: 0.95rem; font-weight: 600;
@@ -362,6 +364,11 @@ a.m-card { padding: 0; overflow: hidden; text-decoration: none; color: inherit; 
 @media (max-width: 760px) {
   .detail-hero { grid-template-columns: 1fr; gap: 24px; }
 }
+
+/* ——— Bar (page publique) ——— */
+.bar-menu-item { display: flex; flex-direction: column; gap: 4px; }
+.bar-menu-item h3 { font-size: 1.3rem; color: var(--ardoise-800); margin: 0; }
+.bar-menu-price { margin-top: 8px; font-family: var(--font-body); font-weight: 700; color: var(--brique-600); font-size: 1.1rem; }
 
 /* ——— Icônes Lucide ——— */
 .lucide, [data-lucide] svg { stroke-width: 1.8; }

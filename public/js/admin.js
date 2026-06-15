@@ -124,13 +124,13 @@ async function init() {
 const VIEW_TITLES = {
   dashboard: 'Tableau de bord', events: 'Agenda', memberships: 'Adhésions',
   messages: 'Messages', donations: 'Dons', accounting: 'Comptabilité', listings: 'Entraide',
-  merchants: 'Commerçants', devis: 'Lieu de vie', admins: 'Administrateurs',
+  merchants: 'Commerçants', bar: 'Bar', devis: 'Lieu de vie', admins: 'Administrateurs',
   templates: 'Modèles', settings: 'Réglages',
 };
 function switchView(view) {
   $$('.dash-nav__item').forEach(b => b.classList.toggle('is-active', b.dataset.view === view));
   $('#view-title').textContent = VIEW_TITLES[view] || '';
-  const render = { dashboard: renderDashboard, events: renderEvents, memberships: renderMemberships, messages: renderMessages, donations: renderDonations, accounting: renderAccounting, listings: renderAdminListings, merchants: renderAdminMerchants, devis: renderDevis, admins: renderAdmins, templates: renderTemplates, settings: renderSettings }[view];
+  const render = { dashboard: renderDashboard, events: renderEvents, memberships: renderMemberships, messages: renderMessages, donations: renderDonations, accounting: renderAccounting, listings: renderAdminListings, merchants: renderAdminMerchants, bar: renderBar, devis: renderDevis, admins: renderAdmins, templates: renderTemplates, settings: renderSettings }[view];
   if (render) render();
 }
 
@@ -989,6 +989,118 @@ function accountModal() {
     } catch (ex) { toast(ex.message, true); } });
 }
 async function delAccount(id) { if (!confirm('Supprimer ce compte ?')) return; try { await api('/admin/accounting/accounts/' + id, { method: 'DELETE' }); ACC_ACCOUNTS = await api('/admin/accounting/accounts'); toast('Compte supprimé'); drawAccounting(); } catch (ex) { toast(ex.message, true); } }
+
+/* ----------------------------- Bar ----------------------------- */
+let BAR_TAB = 'caisse', BAR_PRODUCTS = [], BAR_CART = {};
+async function renderBar() {
+  const c = $('#dash-content'); c.innerHTML = '<p class="muted">Chargement…</p>';
+  BAR_PRODUCTS = await api('/admin/bar/products');
+  drawBar();
+}
+async function drawBar() {
+  const c = $('#dash-content');
+  const tab = (v, l) => `<button class="seg-btn ${BAR_TAB === v ? 'is-active' : ''}" data-btab="${v}">${l}</button>`;
+  c.innerHTML = `<div class="acc-toolbar"><div class="seg seg--wrap">${tab('caisse', 'Caisse')}${tab('stock', 'Produits & stock')}${tab('recettes', 'Recettes')}${tab('vitrine', 'Page publique')}</div>
+    <a class="btn btn--ghost btn--sm" href="bar.html" target="_blank" rel="noopener"><span data-lucide="external-link"></span> Voir la page</a></div>
+    <div id="bar-body"><p class="muted">Chargement…</p></div>`;
+  $$('.seg-btn', c).forEach(b => b.addEventListener('click', () => { BAR_TAB = b.dataset.btab; drawBar(); }));
+  icons();
+  const body = $('#bar-body');
+  if (BAR_TAB === 'caisse') barCaisse(body);
+  else if (BAR_TAB === 'stock') barStock(body);
+  else if (BAR_TAB === 'recettes') await barRecettes(body);
+  else await barVitrine(body);
+  icons();
+}
+function barCaisse(body) {
+  const active = BAR_PRODUCTS.filter(p => p.active);
+  const cart = Object.entries(BAR_CART).filter(([id, q]) => q > 0).map(([id, q]) => ({ p: BAR_PRODUCTS.find(x => x.id == id), q })).filter(x => x.p);
+  const total = cart.reduce((s, { p, q }) => s + p.price * q, 0);
+  body.innerHTML = `<div class="bar-caisse">
+    <div class="bar-products-grid">${active.length ? active.map(p => `<button class="bar-prod-btn" data-add="${p.id}"><span class="bar-prod-name">${esc(p.name)}</span><span class="bar-prod-price">${eur(p.price)}</span><span class="bar-prod-stock ${p.stock <= 5 ? 'low' : ''}">stock ${p.stock}</span></button>`).join('') : '<p class="muted">Aucun produit actif. Ajoutez-en dans « Produits & stock ».</p>'}</div>
+    <div class="bar-ticket card">
+      <h3 style="margin:0 0 12px">Ticket</h3>
+      <div id="bar-cart">${cart.length ? cart.map(({ p, q }) => `<div class="bar-cart-row"><span>${esc(p.name)}</span><span class="bar-qty"><button class="icon-btn" data-dec="${p.id}">−</button> ${q} <button class="icon-btn" data-inc="${p.id}">+</button></span><span>${eur(p.price * q)}</span></div>`).join('') : '<p class="muted">Cliquez sur les produits pour les ajouter.</p>'}</div>
+      <div class="bar-total">Total <strong>${eur(total)}</strong></div>
+      <div class="field" style="margin-top:10px"><label>Ou montant libre (€)</label><input id="bar-free" type="number" step="0.01" min="0" placeholder="ex. 12.50"></div>
+      <div class="field"><label>Note (facultatif)</label><input id="bar-note" placeholder="Soirée, service…"></div>
+      <button class="btn btn--accent btn--md btn--full" id="bar-encaisser">Encaisser</button>
+      ${cart.length ? '<button class="btn btn--ghost btn--sm btn--full" id="bar-clear" style="margin-top:8px">Vider le ticket</button>' : ''}
+    </div></div>`;
+  $$('[data-add]', body).forEach(b => b.addEventListener('click', () => { BAR_CART[b.dataset.add] = (BAR_CART[b.dataset.add] || 0) + 1; barCaisse(body); icons(); }));
+  $$('[data-inc]', body).forEach(b => b.addEventListener('click', () => { BAR_CART[b.dataset.inc] = (BAR_CART[b.dataset.inc] || 0) + 1; barCaisse(body); icons(); }));
+  $$('[data-dec]', body).forEach(b => b.addEventListener('click', () => { const id = b.dataset.dec; BAR_CART[id] = Math.max(0, (BAR_CART[id] || 0) - 1); barCaisse(body); icons(); }));
+  const clr = $('#bar-clear', body); if (clr) clr.addEventListener('click', () => { BAR_CART = {}; barCaisse(body); icons(); });
+  $('#bar-encaisser', body).addEventListener('click', async () => {
+    const items = Object.entries(BAR_CART).filter(([id, q]) => q > 0).map(([id, q]) => ({ product_id: Number(id), qty: q }));
+    const free = Number($('#bar-free', body).value) || 0;
+    const note = $('#bar-note', body).value.trim();
+    if (items.length === 0 && free <= 0) { alert('Ajoutez des produits ou un montant libre.'); return; }
+    try {
+      const r = await api('/admin/bar/sales', { method: 'POST', body: JSON.stringify({ items, free_amount: free, note }) });
+      BAR_CART = {}; BAR_PRODUCTS = await api('/admin/bar/products'); toast('Recette encaissée : ' + eur(r.total) + ' — comptabilité mise à jour'); drawBar();
+    } catch (ex) { toast(ex.message, true); }
+  });
+}
+function barStock(body) {
+  body.innerHTML = `<div class="panel"><div class="panel-head"><h3>Produits & stock (${BAR_PRODUCTS.length})</h3><button class="btn btn--accent btn--sm" id="bar-addp"><span data-lucide="plus"></span> Ajouter un produit</button></div>
+    <div class="panel-body"><table class="table"><thead><tr><th>Produit</th><th>Prix</th><th>Stock</th><th>État</th><th class="col-actions">Actions</th></tr></thead>
+    <tbody>${BAR_PRODUCTS.map(p => `<tr><td class="cell-title">${esc(p.name)}<div class="cell-sub">${esc(p.unit || '')}</div></td><td>${eur(p.price)}</td>
+      <td><span class="bar-stock-ctrl"><button class="icon-btn" data-sdec="${p.id}">−</button> <strong class="${p.stock <= 5 ? 'stock-low' : ''}">${p.stock}</strong> <button class="icon-btn" data-sinc="${p.id}">+</button> <button class="icon-btn" data-sset="${p.id}" title="Réajuster le stock">±</button></span></td>
+      <td>${p.active ? '<span class="badge badge--olive">Actif</span>' : '<span class="badge badge--neutral">Masqué</span>'}</td>
+      <td class="col-actions"><button class="icon-btn" data-pedit="${p.id}" title="Modifier"><span data-lucide="pencil"></span></button><button class="icon-btn danger" data-pdel="${p.id}" title="Supprimer"><span data-lucide="trash-2"></span></button></td></tr>`).join('')}</tbody></table></div></div>`;
+  $('#bar-addp', body).addEventListener('click', () => barProductModal());
+  $$('[data-pedit]', body).forEach(b => b.addEventListener('click', () => barProductModal(BAR_PRODUCTS.find(p => p.id == b.dataset.pedit))));
+  $$('[data-pdel]', body).forEach(b => b.addEventListener('click', () => barDelProduct(b.dataset.pdel)));
+  $$('[data-sinc]', body).forEach(b => b.addEventListener('click', () => barStockAdj(b.dataset.sinc, 1)));
+  $$('[data-sdec]', body).forEach(b => b.addEventListener('click', () => barStockAdj(b.dataset.sdec, -1)));
+  $$('[data-sset]', body).forEach(b => b.addEventListener('click', () => barStockSet(b.dataset.sset)));
+  icons();
+}
+async function barStockAdj(id, delta) { try { await api('/admin/bar/products/' + id + '/stock', { method: 'POST', body: JSON.stringify({ delta }) }); BAR_PRODUCTS = await api('/admin/bar/products'); drawBar(); } catch (ex) { toast(ex.message, true); } }
+async function barStockSet(id) { const p = BAR_PRODUCTS.find(x => x.id == id); const v = prompt('Stock pour « ' + p.name + ' » :', p.stock); if (v === null) return; try { await api('/admin/bar/products/' + id + '/stock', { method: 'POST', body: JSON.stringify({ set: Number(v) || 0 }) }); BAR_PRODUCTS = await api('/admin/bar/products'); drawBar(); } catch (ex) { toast(ex.message, true); } }
+async function barDelProduct(id) { if (!confirm('Supprimer ce produit ?')) return; try { await api('/admin/bar/products/' + id, { method: 'DELETE' }); BAR_PRODUCTS = await api('/admin/bar/products'); toast('Produit supprimé'); drawBar(); } catch (ex) { toast(ex.message, true); } }
+function barProductModal(p) {
+  const e = p || {};
+  openModal(`<h3>${p ? 'Modifier' : 'Ajouter'} un produit</h3><form id="bp-form">
+    <div class="field"><label>Nom</label><input name="name" value="${esc(e.name || '')}" required></div>
+    <div class="form-grid2"><div class="field"><label>Prix (€)</label><input name="price" type="number" step="0.01" min="0" value="${e.price != null ? esc(e.price) : ''}"></div><div class="field"><label>Unité</label><input name="unit" value="${esc(e.unit || '')}" placeholder="verre, tasse…"></div></div>
+    ${p ? `<label style="display:flex;align-items:center;gap:8px;margin:4px 0"><input type="checkbox" name="active" ${e.active ? 'checked' : ''} style="width:auto"> Actif (visible sur la carte)</label>` : '<div class="field"><label>Stock initial</label><input name="stock" type="number" step="1" min="0" value="0"></div>'}
+    <div class="modal-actions"><button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button><button type="submit" class="btn btn--accent btn--md">${p ? 'Enregistrer' : 'Ajouter'}</button></div></form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#bp-form').addEventListener('submit', async ev => {
+    ev.preventDefault(); const f = ev.target;
+    const payload = { name: f.name.value.trim(), price: f.price.value, unit: f.unit.value.trim() };
+    try {
+      if (p) { payload.active = f.active.checked ? 1 : 0; await api('/admin/bar/products/' + p.id, { method: 'PUT', body: JSON.stringify(payload) }); }
+      else { payload.stock = f.stock.value; await api('/admin/bar/products', { method: 'POST', body: JSON.stringify(payload) }); }
+      closeModal(); BAR_PRODUCTS = await api('/admin/bar/products'); toast('Produit enregistré'); drawBar();
+    } catch (ex) { toast(ex.message, true); }
+  });
+}
+async function barRecettes(body) {
+  const sales = await api('/admin/bar/sales');
+  const total = sales.reduce((s, x) => s + (Number(x.total) || 0), 0);
+  body.innerHTML = `<div class="panel"><div class="panel-head"><h3>Recettes du bar — ${eur(total)} (${sales.length})</h3></div>
+    <div class="panel-body"><p class="muted" style="padding:0 22px">Chaque encaissement crée automatiquement une écriture comptable (caisse du bar 531 / recettes du bar 706).</p>
+    ${sales.length ? `<table class="table"><thead><tr><th>Date</th><th>Détail</th><th>Total</th><th class="col-actions"></th></tr></thead><tbody>${sales.map(s => `<tr><td class="muted">${fmtDate(s.sdate)}</td><td>${s.items.length ? s.items.map(i => esc(i.name) + ' ×' + i.qty).join(', ') : '<span class="muted">montant libre</span>'}${s.note ? `<div class="cell-sub">${esc(s.note)}</div>` : ''}</td><td class="cell-title">${eur(s.total)}</td><td class="col-actions"><button class="icon-btn danger" data-saledel="${s.id}" title="Supprimer (restaure le stock)"><span data-lucide="trash-2"></span></button></td></tr>`).join('')}</tbody></table>` : '<div class="empty-state">Aucune recette enregistrée.</div>'}</div></div>`;
+  $$('[data-saledel]', body).forEach(b => b.addEventListener('click', () => barDelSale(b.dataset.saledel)));
+  icons();
+}
+async function barDelSale(id) { if (!confirm("Supprimer cette recette ? Le stock sera restauré et l'écriture comptable annulée.")) return; try { await api('/admin/bar/sales/' + id, { method: 'DELETE' }); BAR_PRODUCTS = await api('/admin/bar/products'); toast('Recette supprimée'); drawBar(); } catch (ex) { toast(ex.message, true); } }
+async function barVitrine(body) {
+  const s = await api('/admin/settings');
+  body.innerHTML = `<div class="panel"><div class="panel-head"><h3>Page publique du bar</h3></div><div class="panel-body" style="padding:22px">
+    <p class="muted" style="margin:0 0 16px">Texte affiché sur la page publique du bar. La carte est générée automatiquement à partir des produits actifs.</p>
+    <form id="bar-vitrine-form"><div class="field"><label>Description</label><textarea name="bar_description" rows="3">${esc(s.bar_description || '')}</textarea></div>
+    <div class="field"><label>Horaires</label><input name="bar_hours" value="${esc(s.bar_hours || '')}"></div>
+    <button class="btn btn--accent btn--md" type="submit">Enregistrer</button></form></div></div>`;
+  $('#bar-vitrine-form', body).addEventListener('submit', async e => {
+    e.preventDefault(); const f = e.target;
+    try { await api('/admin/settings', { method: 'PUT', body: JSON.stringify({ bar_description: f.bar_description.value.trim(), bar_hours: f.bar_hours.value.trim() }) }); toast('Page du bar enregistrée'); }
+    catch (ex) { toast(ex.message, true); }
+  });
+}
 
 /* ----------------------------- Lieu de vie (devis) ----------------------------- */
 let DEVIS_LIST = [], LEVELS = [], CURRENT_LEVEL = null, PLACING = null;

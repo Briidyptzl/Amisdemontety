@@ -290,6 +290,15 @@ async function handleApi(request, env, url) {
     return json(results || []);
   }
 
+  // Bar — vitrine publique (carte)
+  if (path === '/api/bar' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT name, price, unit FROM bar_products WHERE active = 1 ORDER BY sort, id`).all();
+    const rows = await env.DB.prepare(`SELECT key, value FROM settings WHERE key IN ('bar_description','bar_hours')`).all();
+    const cfg = {}; (rows.results || []).forEach(r => { cfg[r.key] = r.value; });
+    return json({ description: cfg.bar_description || '', hours: cfg.bar_hours || '', products: results || [] });
+  }
+
   /* ===================== Espace commerçant ===================== */
   if (path === '/api/merchant/login' && method === 'POST') {
     const b = await request.json().catch(() => ({}));
@@ -438,7 +447,7 @@ async function handleAdmin(request, env, url, method, session) {
 
   // Paramètres (liens HelloAsso, e-mail de contact)
   if (path === '/api/admin/settings' && method === 'GET') {
-    const rows = await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE 'helloasso_%' OR key IN ('contact_email','mail_from','resend_api_key','plan_lieu_key')`).all();
+    const rows = await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE 'helloasso_%' OR key IN ('contact_email','mail_from','resend_api_key','plan_lieu_key','bar_description','bar_hours')`).all();
     const cfg = {};
     (rows.results || []).forEach(r => { cfg[r.key] = r.value; });
     cfg.resend_configured = !!cfg.resend_api_key;
@@ -447,7 +456,7 @@ async function handleAdmin(request, env, url, method, session) {
   }
   if (path === '/api/admin/settings' && method === 'PUT') {
     const b = await request.json().catch(() => ({}));
-    const allowed = ['helloasso_membership_url', 'helloasso_donation_url', 'contact_email', 'mail_from', 'resend_api_key', 'plan_lieu_key'];
+    const allowed = ['helloasso_membership_url', 'helloasso_donation_url', 'contact_email', 'mail_from', 'resend_api_key', 'plan_lieu_key', 'bar_description', 'bar_hours'];
     for (const k of allowed) {
       if (k in b) {
         await env.DB.prepare(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?,?,datetime('now'))`)
@@ -931,6 +940,89 @@ async function handleAdmin(request, env, url, method, session) {
     const body = ((t && t.body) || '').replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars) ? String(vars[k]) : m);
     const page = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Reçu fiscal — ${vars.receipt_no}</title><style>body{background:#fff;margin:0;padding:20px}@media print{.noprint{display:none}}</style></head><body>${body}<div class="noprint" style="text-align:center;margin:24px"><button onclick="window.print()" style="padding:10px 20px">Imprimer / Enregistrer en PDF</button></div></body></html>`;
     return new Response(page, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  }
+
+  /* ----- Bar : produits & stock ----- */
+  if (path === '/api/admin/bar/products' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT * FROM bar_products ORDER BY sort, id`).all();
+    return json(results || []);
+  }
+  if (path === '/api/admin/bar/products' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 120);
+    if (!name) return json({ error: 'Nom du produit requis.' }, 400);
+    await env.DB.prepare(`INSERT INTO bar_products (name, price, stock, unit, sort) VALUES (?,?,?,?,?)`)
+      .bind(name, Number(b.price) || 0, Number(b.stock) || 0, clean(b.unit, 30) || null, parseInt(b.sort, 10) || 0).run();
+    return json({ ok: true });
+  }
+  const bpStock = path.match(/^\/api\/admin\/bar\/products\/(\d+)\/stock$/);
+  if (bpStock && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    if ('set' in b) await env.DB.prepare(`UPDATE bar_products SET stock=? WHERE id=?`).bind(Number(b.set) || 0, Number(bpStock[1])).run();
+    else if ('delta' in b) await env.DB.prepare(`UPDATE bar_products SET stock = stock + ? WHERE id=?`).bind(Number(b.delta) || 0, Number(bpStock[1])).run();
+    return json({ ok: true });
+  }
+  const bpMatch = path.match(/^\/api\/admin\/bar\/products\/(\d+)$/);
+  if (bpMatch && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 120);
+    if (!name) return json({ error: 'Nom requis.' }, 400);
+    await env.DB.prepare(`UPDATE bar_products SET name=?, price=?, unit=?, active=?, sort=? WHERE id=?`)
+      .bind(name, Number(b.price) || 0, clean(b.unit, 30) || null, b.active === 0 ? 0 : 1, parseInt(b.sort, 10) || 0, Number(bpMatch[1])).run();
+    return json({ ok: true });
+  }
+  if (bpMatch && method === 'DELETE') {
+    await env.DB.prepare(`DELETE FROM bar_products WHERE id=?`).bind(Number(bpMatch[1])).run();
+    return json({ ok: true });
+  }
+
+  /* ----- Bar : caisse / recettes (→ comptabilité) ----- */
+  if (path === '/api/admin/bar/sales' && method === 'GET') {
+    const sales = (await env.DB.prepare(`SELECT * FROM bar_sales ORDER BY sdate DESC, id DESC`).all()).results || [];
+    const items = (await env.DB.prepare(`SELECT * FROM bar_sale_items`).all()).results || [];
+    const by = {}; items.forEach(i => { (by[i.sale_id] = by[i.sale_id] || []).push(i); });
+    sales.forEach(s => { s.items = by[s.id] || []; });
+    return json(sales);
+  }
+  if (path === '/api/admin/bar/sales' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const sdate = clean(b.sdate, 20) || new Date().toISOString().slice(0, 10);
+    const note = clean(b.note, 300);
+    const items = Array.isArray(b.items) ? b.items : [];
+    let total = 0; const lines = [];
+    for (const it of items) {
+      const pid = parseInt(it.product_id, 10), qty = Number(it.qty) || 0;
+      if (!pid || qty <= 0) continue;
+      const p = await env.DB.prepare(`SELECT id, name, price FROM bar_products WHERE id=?`).bind(pid).first();
+      if (!p) continue;
+      total += p.price * qty; lines.push({ product_id: pid, name: p.name, qty, unit_price: p.price });
+    }
+    if (lines.length === 0) { const fa = Number(b.free_amount) || 0; if (fa > 0) total = fa; }
+    total = Math.round(total * 100) / 100;
+    if (total <= 0) return json({ error: 'Indiquez des produits vendus ou un montant.' }, 400);
+    const r = await env.DB.prepare(`INSERT INTO bar_sales (sdate, total, note) VALUES (?,?,?)`).bind(sdate, total, note || null).run();
+    const sid = r.meta.last_row_id;
+    for (const l of lines) {
+      await env.DB.prepare(`INSERT INTO bar_sale_items (sale_id, product_id, name, qty, unit_price) VALUES (?,?,?,?,?)`)
+        .bind(sid, l.product_id, l.name, l.qty, l.unit_price).run();
+      await env.DB.prepare(`UPDATE bar_products SET stock = stock - ? WHERE id=?`).bind(l.qty, l.product_id).run();
+    }
+    const caisse = await accountIdByCode(env, '531'), recettes = await accountIdByCode(env, '706');
+    if (caisse && recettes) await createEntry(env, {
+      edate: sdate, label: 'Recette du bar' + (note ? (' — ' + note) : ''), source: 'bar', source_id: sid,
+      lines: [{ account_id: caisse, debit: total, credit: 0 }, { account_id: recettes, debit: 0, credit: total }],
+    });
+    return json({ ok: true, id: sid, total });
+  }
+  const bsMatch = path.match(/^\/api\/admin\/bar\/sales\/(\d+)$/);
+  if (bsMatch && method === 'DELETE') {
+    const id = Number(bsMatch[1]);
+    const its = (await env.DB.prepare(`SELECT * FROM bar_sale_items WHERE sale_id=?`).bind(id).all()).results || [];
+    for (const it of its) if (it.product_id) await env.DB.prepare(`UPDATE bar_products SET stock = stock + ? WHERE id=?`).bind(it.qty, it.product_id).run();
+    await env.DB.prepare(`DELETE FROM bar_sale_items WHERE sale_id=?`).bind(id).run();
+    await env.DB.prepare(`DELETE FROM bar_sales WHERE id=?`).bind(id).run();
+    await deleteSourceEntry(env, 'bar', id);
+    return json({ ok: true });
   }
 
   return json({ error: 'Route inconnue' }, 404);
