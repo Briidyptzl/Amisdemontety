@@ -1092,6 +1092,11 @@ async function handleAdmin(request, env, url, method, session) {
     try { await sendSetPasswordMail(env, 'bar', a, 'reset', url.origin); return json({ ok: true }); }
     catch (e) { return json({ error: String(e.message || e) }, 502); }
   }
+  // Inventaires du bar (consultables par les administrateurs)
+  if (path === '/api/admin/bar/inventories' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT * FROM bar_inventories ORDER BY idate DESC, id DESC`).all();
+    return json(results || []);
+  }
 
   return json({ error: 'Route inconnue' }, 404);
 }
@@ -1398,6 +1403,110 @@ async function handleBarManager(request, env, url, method, session) {
   }
   const bsmM = path.match(/^\/api\/bar\/manager\/sales\/(\d+)$/);
   if (bsmM && method === 'DELETE') { await deleteBarSale(env, Number(bsmM[1])); return json({ ok: true }); }
+
+  if (path === '/api/bar/manager/upload' && method === 'POST') return handleUpload(request, env, 'bar' + mid);
+
+  /* ----- Partenaires du bar ----- */
+  if (path === '/api/bar/manager/partners' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT * FROM bar_partners ORDER BY sort, id`).all();
+    return json(results || []);
+  }
+  if (path === '/api/bar/manager/partners' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 160);
+    if (!name) return json({ error: 'Nom du partenaire requis.' }, 400);
+    await env.DB.prepare(`INSERT INTO bar_partners (name, description, contact, link, sort) VALUES (?,?,?,?,?)`)
+      .bind(name, clean(b.description, 1000) || null, clean(b.contact, 160) || null, clean(b.link, 300) || null, parseInt(b.sort, 10) || 0).run();
+    return json({ ok: true });
+  }
+  const partM = path.match(/^\/api\/bar\/manager\/partners\/(\d+)$/);
+  if (partM && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 160);
+    if (!name) return json({ error: 'Nom requis.' }, 400);
+    await env.DB.prepare(`UPDATE bar_partners SET name=?, description=?, contact=?, link=? WHERE id=?`)
+      .bind(name, clean(b.description, 1000) || null, clean(b.contact, 160) || null, clean(b.link, 300) || null, Number(partM[1])).run();
+    return json({ ok: true });
+  }
+  if (partM && method === 'DELETE') { await env.DB.prepare(`DELETE FROM bar_partners WHERE id=?`).bind(Number(partM[1])).run(); return json({ ok: true }); }
+
+  /* ----- Projets (devis / travaux / tâches) ----- */
+  if (path === '/api/bar/manager/projects' && method === 'GET') {
+    const projects = (await env.DB.prepare(`SELECT * FROM bar_projects ORDER BY created_at DESC, id DESC`).all()).results || [];
+    const tasks = (await env.DB.prepare(`SELECT * FROM bar_tasks ORDER BY sort, id`).all()).results || [];
+    const by = {}; tasks.forEach(t => { (by[t.project_id] = by[t.project_id] || []).push(t); });
+    projects.forEach(p => { p.tasks = by[p.id] || []; });
+    return json(projects);
+  }
+  if (path === '/api/bar/manager/projects' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const title = clean(b.title, 200);
+    if (!title) return json({ error: 'Titre du projet requis.' }, 400);
+    const status = ['idee', 'en_cours', 'termine'].includes(b.status) ? b.status : 'en_cours';
+    await env.DB.prepare(`INSERT INTO bar_projects (title, status, description, document_key, amount) VALUES (?,?,?,?,?)`)
+      .bind(title, status, clean(b.description, 2000) || null, clean(b.document_key, 200) || null,
+        (b.amount === '' || b.amount == null) ? null : Number(b.amount)).run();
+    return json({ ok: true });
+  }
+  const projM = path.match(/^\/api\/bar\/manager\/projects\/(\d+)$/);
+  if (projM && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    const title = clean(b.title, 200);
+    if (!title) return json({ error: 'Titre requis.' }, 400);
+    const status = ['idee', 'en_cours', 'termine'].includes(b.status) ? b.status : 'en_cours';
+    await env.DB.prepare(`UPDATE bar_projects SET title=?, status=?, description=?, amount=?, document_key=COALESCE(?, document_key) WHERE id=?`)
+      .bind(title, status, clean(b.description, 2000) || null, (b.amount === '' || b.amount == null) ? null : Number(b.amount),
+        b.document_key === undefined ? null : (clean(b.document_key, 200) || null), Number(projM[1])).run();
+    return json({ ok: true });
+  }
+  if (projM && method === 'DELETE') {
+    await env.DB.prepare(`DELETE FROM bar_tasks WHERE project_id=?`).bind(Number(projM[1])).run();
+    await env.DB.prepare(`DELETE FROM bar_projects WHERE id=?`).bind(Number(projM[1])).run();
+    return json({ ok: true });
+  }
+  const ptaskM = path.match(/^\/api\/bar\/manager\/projects\/(\d+)\/tasks$/);
+  if (ptaskM && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const label = clean(b.label, 300);
+    if (!label) return json({ error: 'Tâche vide.' }, 400);
+    await env.DB.prepare(`INSERT INTO bar_tasks (project_id, label) VALUES (?,?)`).bind(Number(ptaskM[1]), label).run();
+    return json({ ok: true });
+  }
+  const taskM = path.match(/^\/api\/bar\/manager\/tasks\/(\d+)$/);
+  if (taskM && method === 'PATCH') {
+    const b = await request.json().catch(() => ({}));
+    await env.DB.prepare(`UPDATE bar_tasks SET done=? WHERE id=?`).bind(b.done ? 1 : 0, Number(taskM[1])).run();
+    return json({ ok: true });
+  }
+  if (taskM && method === 'DELETE') { await env.DB.prepare(`DELETE FROM bar_tasks WHERE id=?`).bind(Number(taskM[1])).run(); return json({ ok: true }); }
+
+  /* ----- Inventaires ----- */
+  if (path === '/api/bar/manager/inventory-sheet' && method === 'GET') {
+    const prods = (await env.DB.prepare(`SELECT name, unit, stock FROM bar_products WHERE active=1 ORDER BY sort, id`).all()).results || [];
+    const rows = prods.map(p => `<tr><td>${escapeHtmlMail(p.name)}</td><td>${escapeHtmlMail(p.unit || '')}</td><td style="text-align:center">${p.stock}</td><td style="border:1px solid #999;height:34px;width:90px"></td><td style="border:1px solid #999;width:40px"></td></tr>`).join('');
+    const page = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Feuille d'inventaire</title>
+      <style>body{font-family:Arial,sans-serif;color:#222;padding:24px}h1{font-size:20px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #999;padding:8px;font-size:14px}th{background:#eee;text-align:left}@media print{.noprint{display:none}}</style></head>
+      <body><h1>Inventaire du bar — Les Amis de Montety</h1>
+      <p>Date : ____ / ____ / ________ &nbsp;&nbsp; Responsable : ______________________</p>
+      <table><thead><tr><th>Produit</th><th>Unité</th><th>Stock théorique</th><th>Compté</th><th>✓</th></tr></thead><tbody>${rows}</tbody></table>
+      <p style="margin-top:24px">Observations :</p><div style="border:1px solid #999;height:80px"></div>
+      <div class="noprint" style="text-align:center;margin-top:20px"><button onclick="window.print()" style="padding:10px 20px">Imprimer</button></div></body></html>`;
+    return new Response(page, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  }
+  if (path === '/api/bar/manager/inventories' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT * FROM bar_inventories ORDER BY idate DESC, id DESC`).all();
+    return json(results || []);
+  }
+  if (path === '/api/bar/manager/inventories' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const idate = clean(b.idate, 20) || new Date().toISOString().slice(0, 10);
+    await env.DB.prepare(`INSERT INTO bar_inventories (idate, note, filled_key, author) VALUES (?,?,?,?)`)
+      .bind(idate, clean(b.note, 500) || null, clean(b.filled_key, 200) || null, session.name || null).run();
+    return json({ ok: true });
+  }
+  const invM = path.match(/^\/api\/bar\/manager\/inventories\/(\d+)$/);
+  if (invM && method === 'DELETE') { await env.DB.prepare(`DELETE FROM bar_inventories WHERE id=?`).bind(Number(invM[1])).run(); return json({ ok: true }); }
+
   return json({ error: 'Route inconnue' }, 404);
 }
 

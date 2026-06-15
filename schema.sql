@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS memberships (
   pay_method TEXT,                            -- especes / cheque / virement / helloasso / cb
   paid       INTEGER NOT NULL DEFAULT 0,      -- 1 = encaissé (alimente la compta)
   paid_at    TEXT,
+  mtype      TEXT NOT NULL DEFAULT 'adherent',-- adherent / bienfaiteur / donateur / honneur
+  pay_status TEXT,                            -- null / 'encaisse' / 'en_attente' (chèque à encaisser)
   created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -212,6 +214,32 @@ CREATE TABLE IF NOT EXISTS bar_sale_items (
   qty REAL NOT NULL DEFAULT 1, unit_price REAL NOT NULL DEFAULT 0
 );
 -- Vitrine du bar : settings 'bar_description', 'bar_hours'.
+
+-- Partenaires du bar (brasseurs, fournisseurs, commerces partenaires)
+CREATE TABLE IF NOT EXISTS bar_partners (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL, description TEXT, contact TEXT, link TEXT,
+  sort INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (datetime('now'))
+);
+-- Projets / travaux du bar (devis joint éventuel) + check-list de tâches
+CREATE TABLE IF NOT EXISTS bar_projects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'en_cours', -- idee / en_cours / termine
+  description TEXT, document_key TEXT, amount REAL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS bar_tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL, label TEXT NOT NULL,
+  done INTEGER NOT NULL DEFAULT 0, sort INTEGER NOT NULL DEFAULT 0
+);
+-- Inventaires : feuille imprimable (HTML), puis scan rempli ré-uploadé (filled_key → KV MEDIA).
+-- Tous les inventaires sont consultables par les administrateurs (/api/admin/bar/inventories).
+CREATE TABLE IF NOT EXISTS bar_inventories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  idate TEXT NOT NULL, note TEXT, filled_key TEXT,
+  author TEXT, created_at TEXT DEFAULT (datetime('now'))
+);
 
 -- Modèles d'e-mails et d'attestation fiscale (éditables dans l'admin)
 CREATE TABLE IF NOT EXISTS templates (

@@ -53,9 +53,14 @@ async function init() {
 function switchView(v) {
   VIEW = v;
   $$('.bara-tab').forEach(b => b.classList.toggle('is-active', b.dataset.view === v));
-  if (v === 'board') renderBoard();
-  else if (v === 'caisse') renderCaisse();
-  else renderStock();
+  ({ board: renderBoard, caisse: renderCaisse, stock: renderStock, inventaire: renderInventaire, partners: renderPartners, projects: renderProjects }[v] || renderBoard)();
+}
+async function barUpload(file) {
+  const fd = new FormData(); fd.append('file', file);
+  const res = await fetch('/api/bar/manager/upload', { method: 'POST', body: fd });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error || 'Envoi du fichier impossible');
+  return d.key;
 }
 
 /* ----- Consignes ----- */
@@ -161,6 +166,113 @@ function productModal(p) {
       else { payload.stock = f.stock.value; await api('/bar/manager/products', { method: 'POST', body: JSON.stringify(payload) }); }
       closeModal(); PRODUCTS = await api('/bar/manager/products'); toast('Produit enregistré'); drawStock();
     } catch (ex) { toast(ex.message, true); }
+  });
+}
+
+/* ----- Inventaire ----- */
+async function renderInventaire() {
+  const c = $('#bara-content'); c.innerHTML = '<p class="muted">Chargement…</p>';
+  const list = await api('/bar/manager/inventories');
+  c.innerHTML = `<div class="bara-card">
+    <h2><span data-lucide="clipboard-check"></span> Inventaire</h2>
+    <p class="muted">1) Imprimez la feuille · 2) comptez et cochez à la main · 3) scannez et téléversez-la. Tous les inventaires sont consultables par l'association.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:14px 0">
+      <a class="btn btn--secondary btn--md" href="/api/bar/manager/inventory-sheet" target="_blank" rel="noopener"><span data-lucide="printer"></span> Imprimer la feuille</a>
+      <input type="file" id="inv-file" accept="image/*,application/pdf" hidden>
+      <button class="btn btn--accent btn--md" id="inv-up"><span data-lucide="upload"></span> Téléverser un inventaire rempli</button>
+    </div>
+    <div class="stock-list">${list.length ? list.map(invRow).join('') : '<p class="muted">Aucun inventaire enregistré.</p>'}</div></div>`;
+  const fi = $('#inv-file'), ub = $('#inv-up');
+  ub.addEventListener('click', () => fi.click());
+  fi.addEventListener('change', async () => {
+    if (!fi.files[0]) return; ub.disabled = true; ub.textContent = 'Envoi…';
+    try { const key = await barUpload(fi.files[0]); const note = prompt('Une note pour cet inventaire ? (facultatif)') || '';
+      await api('/bar/manager/inventories', { method: 'POST', body: JSON.stringify({ filled_key: key, note, idate: new Date().toISOString().slice(0, 10) }) });
+      toast('Inventaire enregistré'); renderInventaire();
+    } catch (ex) { toast(ex.message, true); ub.disabled = false; ub.textContent = 'Téléverser un inventaire rempli'; }
+  });
+  $$('[data-invdel]', c).forEach(b => b.addEventListener('click', async () => { if (!confirm('Supprimer cet inventaire ?')) return; try { await api('/bar/manager/inventories/' + b.dataset.invdel, { method: 'DELETE' }); renderInventaire(); } catch (ex) { toast(ex.message, true); } }));
+  icons();
+}
+function invRow(i) {
+  return `<div class="stock-item"><div class="si-info"><span class="si-name">Inventaire du ${fmtDate(i.idate)}</span><span class="si-meta">${i.author ? esc(i.author) : ''}${i.note ? ' · ' + esc(i.note) : ''}</span></div>
+    ${i.filled_key ? `<a class="btn btn--secondary btn--sm" href="/img/${esc(i.filled_key)}" target="_blank" rel="noopener">Voir</a>` : ''}
+    <button class="icon-btn danger" data-invdel="${i.id}"><span data-lucide="trash-2"></span></button></div>`;
+}
+
+/* ----- Partenaires ----- */
+async function renderPartners() {
+  const c = $('#bara-content'); c.innerHTML = '<p class="muted">Chargement…</p>';
+  const list = await api('/bar/manager/partners');
+  c.innerHTML = `<div class="bara-card"><div class="bara-card-head"><h2><span data-lucide="handshake"></span> Partenaires du bar</h2><button class="btn btn--accent btn--md" id="pa-add"><span data-lucide="plus"></span> Ajouter</button></div>
+    <div class="stock-list">${list.length ? list.map(partRow).join('') : '<p class="muted">Aucun partenaire.</p>'}</div></div>`;
+  $('#pa-add').addEventListener('click', () => partnerModal());
+  $$('[data-paedit]', c).forEach(b => b.addEventListener('click', () => partnerModal(list.find(p => p.id == b.dataset.paedit))));
+  $$('[data-padel]', c).forEach(b => b.addEventListener('click', async () => { if (!confirm('Supprimer ce partenaire ?')) return; try { await api('/bar/manager/partners/' + b.dataset.padel, { method: 'DELETE' }); renderPartners(); } catch (ex) { toast(ex.message, true); } }));
+  icons();
+}
+function partRow(p) {
+  return `<div class="stock-item"><div class="si-info"><span class="si-name">${esc(p.name)}</span>${p.description ? `<span class="si-meta">${esc(p.description)}</span>` : ''}${(p.contact || p.link) ? `<span class="si-meta">${esc(p.contact || '')}${p.link ? ` · <a href="${esc(p.link)}" target="_blank" rel="noopener">site</a>` : ''}</span>` : ''}</div>
+    <button class="icon-btn" data-paedit="${p.id}"><span data-lucide="pencil"></span></button><button class="icon-btn danger" data-padel="${p.id}"><span data-lucide="trash-2"></span></button></div>`;
+}
+function partnerModal(p) {
+  const e = p || {};
+  openModal(`<h3>${p ? 'Modifier' : 'Ajouter'} un partenaire</h3><form id="pa-form">
+    <div class="field"><label>Nom</label><input name="name" value="${esc(e.name || '')}" required></div>
+    <div class="field"><label>Description</label><textarea name="description">${esc(e.description || '')}</textarea></div>
+    <div class="form-grid2"><div class="field"><label>Contact</label><input name="contact" value="${esc(e.contact || '')}"></div><div class="field"><label>Lien</label><input name="link" value="${esc(e.link || '')}" placeholder="https://"></div></div>
+    <div class="modal-actions"><button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button><button type="submit" class="btn btn--accent btn--md">${p ? 'Enregistrer' : 'Ajouter'}</button></div></form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#pa-form').addEventListener('submit', async ev => {
+    ev.preventDefault(); const f = ev.target;
+    const payload = { name: f.name.value.trim(), description: f.description.value.trim(), contact: f.contact.value.trim(), link: f.link.value.trim() };
+    try { if (p) await api('/bar/manager/partners/' + p.id, { method: 'PUT', body: JSON.stringify(payload) }); else await api('/bar/manager/partners', { method: 'POST', body: JSON.stringify(payload) });
+      closeModal(); toast('Partenaire enregistré'); renderPartners(); } catch (ex) { toast(ex.message, true); }
+  });
+}
+
+/* ----- Projets ----- */
+const PROJ_STATUS = { idee: { label: 'Idée', badge: 'badge--neutral' }, en_cours: { label: 'En cours', badge: 'badge--ocre' }, termine: { label: 'Terminé', badge: 'badge--olive' } };
+async function renderProjects() {
+  const c = $('#bara-content'); c.innerHTML = '<p class="muted">Chargement…</p>';
+  const list = await api('/bar/manager/projects');
+  c.innerHTML = `<div class="bara-card-head" style="margin-bottom:14px"><h2 style="margin:0"><span data-lucide="folder-kanban"></span> Projets</h2><button class="btn btn--accent btn--md" id="pr-add"><span data-lucide="plus"></span> Nouveau projet</button></div>
+    <div class="proj-list">${list.length ? list.map(projCard).join('') : '<p class="muted">Aucun projet.</p>'}</div>`;
+  $('#pr-add').addEventListener('click', () => projectModal());
+  $$('[data-predit]', c).forEach(b => b.addEventListener('click', () => projectModal(list.find(p => p.id == b.dataset.predit))));
+  $$('[data-prdel]', c).forEach(b => b.addEventListener('click', async () => { if (!confirm('Supprimer ce projet ?')) return; try { await api('/bar/manager/projects/' + b.dataset.prdel, { method: 'DELETE' }); renderProjects(); } catch (ex) { toast(ex.message, true); } }));
+  $$('[data-taskadd]', c).forEach(b => b.addEventListener('click', async () => { const label = prompt('Nouvelle tâche :'); if (!label) return; try { await api('/bar/manager/projects/' + b.dataset.taskadd + '/tasks', { method: 'POST', body: JSON.stringify({ label: label.trim() }) }); renderProjects(); } catch (ex) { toast(ex.message, true); } }));
+  $$('[data-tasktoggle]', c).forEach(cb => cb.addEventListener('change', async () => { try { await api('/bar/manager/tasks/' + cb.dataset.tasktoggle, { method: 'PATCH', body: JSON.stringify({ done: cb.checked ? 1 : 0 }) }); cb.nextElementSibling.classList.toggle('done', cb.checked); } catch (ex) { toast(ex.message, true); } }));
+  $$('[data-taskdel]', c).forEach(b => b.addEventListener('click', async () => { try { await api('/bar/manager/tasks/' + b.dataset.taskdel, { method: 'DELETE' }); renderProjects(); } catch (ex) { toast(ex.message, true); } }));
+  icons();
+}
+function projCard(p) {
+  const st = PROJ_STATUS[p.status] || PROJ_STATUS.en_cours;
+  const done = p.tasks.filter(t => t.done).length;
+  return `<div class="proj-card"><div class="proj-head"><div><h3>${esc(p.title)}</h3><span class="badge ${st.badge}">${st.label}</span>${p.amount != null ? ` <span class="muted">${eur(p.amount)}</span>` : ''}</div>
+    <div style="white-space:nowrap"><button class="icon-btn" data-predit="${p.id}"><span data-lucide="pencil"></span></button><button class="icon-btn danger" data-prdel="${p.id}"><span data-lucide="trash-2"></span></button></div></div>
+    ${p.description ? `<p class="muted" style="margin:6px 0">${esc(p.description)}</p>` : ''}
+    ${p.document_key ? `<a href="/img/${esc(p.document_key)}" target="_blank" rel="noopener" class="muted" style="font-size:.9rem">📎 Devis / document</a>` : ''}
+    <div class="proj-tasks"><div class="proj-tasks-head">Tâches (${done}/${p.tasks.length}) <button class="icon-btn" data-taskadd="${p.id}"><span data-lucide="plus"></span></button></div>
+      ${p.tasks.map(t => `<label class="proj-task"><input type="checkbox" data-tasktoggle="${t.id}" ${t.done ? 'checked' : ''}><span class="${t.done ? 'done' : ''}">${esc(t.label)}</span><button class="icon-btn danger" data-taskdel="${t.id}"><span data-lucide="x"></span></button></label>`).join('')}
+    </div></div>`;
+}
+function projectModal(p) {
+  const e = p || {};
+  openModal(`<h3>${p ? 'Modifier' : 'Nouveau'} projet</h3><form id="pr-form">
+    <div class="field"><label>Titre</label><input name="title" value="${esc(e.title || '')}" required></div>
+    <div class="form-grid2"><div class="field"><label>Statut</label><select name="status"><option value="idee" ${e.status === 'idee' ? 'selected' : ''}>Idée</option><option value="en_cours" ${(!e.status || e.status === 'en_cours') ? 'selected' : ''}>En cours</option><option value="termine" ${e.status === 'termine' ? 'selected' : ''}>Terminé</option></select></div>
+      <div class="field"><label>Montant (€)</label><input name="amount" type="number" step="0.01" min="0" value="${e.amount != null ? esc(e.amount) : ''}"></div></div>
+    <div class="field"><label>Description</label><textarea name="description">${esc(e.description || '')}</textarea></div>
+    <div class="field"><label>Devis / document (facultatif)</label><input type="file" name="document" accept="image/*,application/pdf">${e.document_key ? '<div class="hint">Un document est déjà joint.</div>' : ''}</div>
+    <div class="modal-actions"><button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button><button type="submit" class="btn btn--accent btn--md">${p ? 'Enregistrer' : 'Créer'}</button></div></form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#pr-form').addEventListener('submit', async ev => {
+    ev.preventDefault(); const f = ev.target;
+    try { const payload = { title: f.title.value.trim(), status: f.status.value, description: f.description.value.trim(), amount: f.amount.value || null };
+      if (f.document.files[0]) payload.document_key = await barUpload(f.document.files[0]);
+      if (p) await api('/bar/manager/projects/' + p.id, { method: 'PUT', body: JSON.stringify(payload) }); else await api('/bar/manager/projects', { method: 'POST', body: JSON.stringify(payload) });
+      closeModal(); toast('Projet enregistré'); renderProjects(); } catch (ex) { toast(ex.message, true); }
   });
 }
 

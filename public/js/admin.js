@@ -1032,7 +1032,7 @@ async function renderBar() {
 async function drawBar() {
   const c = $('#dash-content');
   const tab = (v, l) => `<button class="seg-btn ${BAR_TAB === v ? 'is-active' : ''}" data-btab="${v}">${l}</button>`;
-  c.innerHTML = `<div class="acc-toolbar"><div class="seg seg--wrap">${tab('caisse', 'Caisse')}${tab('stock', 'Produits & stock')}${tab('recettes', 'Recettes')}${tab('gerants', 'Gérants')}${tab('vitrine', 'Page publique')}</div>
+  c.innerHTML = `<div class="acc-toolbar"><div class="seg seg--wrap">${tab('caisse', 'Caisse')}${tab('stock', 'Produits & stock')}${tab('recettes', 'Recettes')}${tab('inventaires', 'Inventaires')}${tab('gerants', 'Gérants')}${tab('vitrine', 'Page publique')}</div>
     <a class="btn btn--ghost btn--sm" href="bar.html" target="_blank" rel="noopener"><span data-lucide="external-link"></span> Voir la page</a></div>
     <div id="bar-body"><p class="muted">Chargement…</p></div>`;
   $$('.seg-btn', c).forEach(b => b.addEventListener('click', () => { BAR_TAB = b.dataset.btab; drawBar(); }));
@@ -1041,6 +1041,7 @@ async function drawBar() {
   if (BAR_TAB === 'caisse') barCaisse(body);
   else if (BAR_TAB === 'stock') barStock(body);
   else if (BAR_TAB === 'recettes') await barRecettes(body);
+  else if (BAR_TAB === 'inventaires') await barInventaires(body);
   else if (BAR_TAB === 'gerants') await barGerants(body);
   else await barVitrine(body);
   icons();
@@ -1135,6 +1136,13 @@ async function barVitrine(body) {
   });
 }
 
+async function barInventaires(body) {
+  const list = await api('/admin/bar/inventories');
+  body.innerHTML = `<div class="panel"><div class="panel-head"><h3>Inventaires du bar (${list.length})</h3></div>
+    <div class="panel-body">${list.length ? `<table class="table"><thead><tr><th>Date</th><th>Responsable</th><th>Note</th><th class="col-actions">Feuille</th></tr></thead>
+    <tbody>${list.map(i => `<tr><td class="cell-title">${fmtDate(i.idate)}</td><td>${esc(i.author || '—')}</td><td class="muted">${esc(i.note || '')}</td><td class="col-actions">${i.filled_key ? `<a class="btn btn--secondary btn--sm" href="/img/${esc(i.filled_key)}" target="_blank" rel="noopener">Voir le scan</a>` : '—'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state">Aucun inventaire déposé par les gérants.</div>'}</div></div>`;
+  icons();
+}
 async function barGerants(body) {
   const list = await api('/admin/bar/managers');
   body.innerHTML = `<div class="panel">
