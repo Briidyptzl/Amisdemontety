@@ -129,6 +129,31 @@ function merchantCookie(token, maxAge) {
   return [`${MERCHANT_COOKIE}=${token}`, 'Path=/', 'HttpOnly', 'Secure', 'SameSite=Strict', `Max-Age=${maxAge}`].join('; ');
 }
 
+/* ----------------------------- sessions gérant de bar ----------------------------- */
+const BAR_COOKIE = 'montety_bar';
+async function makeBarSession(env, mgr) {
+  const secret = await getSessionSecret(env);
+  if (!secret) throw new Error('session_secret manquant');
+  const payload = b64urlEncode(JSON.stringify({ bid: mgr.id, name: mgr.name, role: 'bar', exp: Math.floor(Date.now() / 1000) + SESSION_TTL }));
+  return `${payload}.${await hmacHex(payload, secret)}`;
+}
+async function readBarSession(env, request) {
+  const cookie = request.headers.get('Cookie') || '';
+  const m = cookie.match(new RegExp('(?:^|;\\s*)' + BAR_COOKIE + '=([^;]+)'));
+  if (!m) return null;
+  const token = m[1], dot = token.lastIndexOf('.');
+  if (dot < 0) return null;
+  const payload = token.slice(0, dot), sig = token.slice(dot + 1);
+  const secret = await getSessionSecret(env);
+  if (!secret || !timingSafeEqual(sig, await hmacHex(payload, secret))) return null;
+  let data; try { data = JSON.parse(b64urlDecode(payload)); } catch { return null; }
+  if (!data || data.role !== 'bar' || !data.exp || data.exp < Math.floor(Date.now() / 1000)) return null;
+  return data;
+}
+function barCookie(token, maxAge) {
+  return [`${BAR_COOKIE}=${token}`, 'Path=/', 'HttpOnly', 'Secure', 'SameSite=Strict', `Max-Age=${maxAge}`].join('; ');
+}
+
 /* ----------------------------- routeur ----------------------------- */
 export default {
   async fetch(request, env) {
@@ -299,6 +324,30 @@ async function handleApi(request, env, url) {
     return json({ description: cfg.bar_description || '', hours: cfg.bar_hours || '', products: results || [] });
   }
 
+  /* ===================== Espace gérant de bar ===================== */
+  if (path === '/api/bar/manager/login' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const email = clean(b.email, 254).toLowerCase(), password = clean(b.password, 200);
+    const mgr = await env.DB.prepare(`SELECT id, name, email, pass_hash, pass_salt, pass_iter, active FROM bar_managers WHERE lower(email)=?`).bind(email).first();
+    const salt = mgr ? mgr.pass_salt : '00000000000000000000000000000000', iter = mgr ? mgr.pass_iter : 100000;
+    const computed = await pbkdf2Hex(password, salt, iter);
+    if (!mgr || !mgr.active || !timingSafeEqual(computed, mgr.pass_hash)) return json({ error: 'E-mail ou mot de passe incorrect.' }, 401);
+    const token = await makeBarSession(env, mgr);
+    return json({ ok: true, name: mgr.name }, 200, { 'Set-Cookie': barCookie(token, SESSION_TTL) });
+  }
+  if (path === '/api/bar/manager/logout' && method === 'POST') return json({ ok: true }, 200, { 'Set-Cookie': barCookie('', 0) });
+  if (path === '/api/bar/manager/forgot' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const mgr = await env.DB.prepare(`SELECT id, email, name FROM bar_managers WHERE lower(email)=?`).bind(clean(b.email, 254).toLowerCase()).first();
+    if (mgr) { try { await sendSetPasswordMail(env, 'bar', mgr, 'reset', url.origin); } catch (_) {} }
+    return json({ ok: true });
+  }
+  if (path.startsWith('/api/bar/manager/')) {
+    const bs = await readBarSession(env, request);
+    if (!bs) return json({ error: 'Non authentifié' }, 401);
+    return handleBarManager(request, env, url, method, bs);
+  }
+
   /* ===================== Espace commerçant ===================== */
   if (path === '/api/merchant/login' && method === 'POST') {
     const b = await request.json().catch(() => ({}));
@@ -327,16 +376,17 @@ async function handleApi(request, env, url) {
     const b = await request.json().catch(() => ({}));
     const email = clean(b.email, 254).toLowerCase();
     const admin = await env.DB.prepare(`SELECT id, email, name FROM admins WHERE lower(email)=?`).bind(email).first();
-    if (admin) { try { await sendSetPasswordMail(env, admin, 'reset', url.origin); } catch (_) {} }
+    if (admin) { try { await sendSetPasswordMail(env, 'admin', admin, 'reset', url.origin); } catch (_) {} }
     return json({ ok: true });
   }
   if (path === '/api/auth/validate-token' && method === 'POST') {
     const b = await request.json().catch(() => ({}));
-    const t = await env.DB.prepare(
-      `SELECT t.used, t.expires_at, t.kind, a.name FROM auth_tokens t JOIN admins a ON a.id=t.admin_id WHERE t.token_hash=?`)
+    const t = await env.DB.prepare(`SELECT account_type, admin_id, used, expires_at, kind FROM auth_tokens WHERE token_hash=?`)
       .bind(await sha256Hex(clean(b.token, 200))).first();
     if (!t || t.used || new Date(t.expires_at) < new Date()) return json({ valid: false });
-    return json({ valid: true, name: t.name, kind: t.kind });
+    const acc = await env.DB.prepare(`SELECT name FROM ${acctTable(t.account_type)} WHERE id=?`).bind(t.admin_id).first();
+    if (!acc) return json({ valid: false });
+    return json({ valid: true, name: acc.name, kind: t.kind });
   }
   if (path === '/api/auth/set-password' && method === 'POST') {
     const b = await request.json().catch(() => ({}));
@@ -345,9 +395,9 @@ async function handleApi(request, env, url) {
     const t = await env.DB.prepare(`SELECT * FROM auth_tokens WHERE token_hash=?`).bind(await sha256Hex(clean(b.token, 200))).first();
     if (!t || t.used || new Date(t.expires_at) < new Date()) return json({ error: 'Lien invalide ou expiré.' }, 400);
     const { hash, salt, iter } = await hashPassword(password);
-    await env.DB.prepare(`UPDATE admins SET pass_hash=?, pass_salt=?, pass_iter=? WHERE id=?`).bind(hash, salt, iter, t.admin_id).run();
+    await env.DB.prepare(`UPDATE ${acctTable(t.account_type)} SET pass_hash=?, pass_salt=?, pass_iter=? WHERE id=?`).bind(hash, salt, iter, t.admin_id).run();
     await env.DB.prepare(`UPDATE auth_tokens SET used=1 WHERE id=?`).bind(t.id).run();
-    await env.DB.prepare(`DELETE FROM auth_tokens WHERE admin_id=? AND used=0`).bind(t.admin_id).run();
+    await env.DB.prepare(`DELETE FROM auth_tokens WHERE account_type=? AND admin_id=? AND used=0`).bind(t.account_type, t.admin_id).run();
     return json({ ok: true });
   }
 
@@ -702,7 +752,7 @@ async function handleAdmin(request, env, url, method, session) {
     const r = await env.DB.prepare(`INSERT INTO admins (email, name, pass_hash, pass_salt, pass_iter) VALUES (?,?,?,?,?)`)
       .bind(email, name, hash, salt, iter).run();
     try {
-      await sendSetPasswordMail(env, { id: r.meta.last_row_id, email, name }, 'invite', url.origin);
+      await sendSetPasswordMail(env, 'admin', { id: r.meta.last_row_id, email, name }, 'invite', url.origin);
       return json({ ok: true, emailed: true });
     } catch (e) {
       return json({ ok: true, emailed: false, warning: String(e.message || e) });
@@ -731,7 +781,7 @@ async function handleAdmin(request, env, url, method, session) {
   if (adReset && method === 'POST') {
     const a = await env.DB.prepare(`SELECT id, email, name FROM admins WHERE id=?`).bind(Number(adReset[1])).first();
     if (!a) return json({ error: 'Compte introuvable.' }, 404);
-    try { await sendSetPasswordMail(env, a, 'reset', url.origin); return json({ ok: true, emailed: true }); }
+    try { await sendSetPasswordMail(env, 'admin', a, 'reset', url.origin); return json({ ok: true, emailed: true }); }
     catch (e) { return json({ error: String(e.message || e) }, 502); }
   }
 
@@ -1004,44 +1054,43 @@ async function handleAdmin(request, env, url, method, session) {
     return json(sales);
   }
   if (path === '/api/admin/bar/sales' && method === 'POST') {
-    const b = await request.json().catch(() => ({}));
-    const sdate = clean(b.sdate, 20) || new Date().toISOString().slice(0, 10);
-    const note = clean(b.note, 300);
-    const items = Array.isArray(b.items) ? b.items : [];
-    let total = 0; const lines = [];
-    for (const it of items) {
-      const pid = parseInt(it.product_id, 10), qty = Number(it.qty) || 0;
-      if (!pid || qty <= 0) continue;
-      const p = await env.DB.prepare(`SELECT id, name, price FROM bar_products WHERE id=?`).bind(pid).first();
-      if (!p) continue;
-      total += p.price * qty; lines.push({ product_id: pid, name: p.name, qty, unit_price: p.price });
-    }
-    if (lines.length === 0) { const fa = Number(b.free_amount) || 0; if (fa > 0) total = fa; }
-    total = Math.round(total * 100) / 100;
-    if (total <= 0) return json({ error: 'Indiquez des produits vendus ou un montant.' }, 400);
-    const r = await env.DB.prepare(`INSERT INTO bar_sales (sdate, total, note) VALUES (?,?,?)`).bind(sdate, total, note || null).run();
-    const sid = r.meta.last_row_id;
-    for (const l of lines) {
-      await env.DB.prepare(`INSERT INTO bar_sale_items (sale_id, product_id, name, qty, unit_price) VALUES (?,?,?,?,?)`)
-        .bind(sid, l.product_id, l.name, l.qty, l.unit_price).run();
-      await env.DB.prepare(`UPDATE bar_products SET stock = stock - ? WHERE id=?`).bind(l.qty, l.product_id).run();
-    }
-    const caisse = await accountIdByCode(env, '531'), recettes = await accountIdByCode(env, '706');
-    if (caisse && recettes) await createEntry(env, {
-      edate: sdate, label: 'Recette du bar' + (note ? (' — ' + note) : ''), source: 'bar', source_id: sid,
-      lines: [{ account_id: caisse, debit: total, credit: 0 }, { account_id: recettes, debit: 0, credit: total }],
-    });
-    return json({ ok: true, id: sid, total });
+    const r = await recordBarSale(env, await request.json().catch(() => ({})));
+    return r.error ? json({ error: r.error }, 400) : json(r);
   }
   const bsMatch = path.match(/^\/api\/admin\/bar\/sales\/(\d+)$/);
   if (bsMatch && method === 'DELETE') {
-    const id = Number(bsMatch[1]);
-    const its = (await env.DB.prepare(`SELECT * FROM bar_sale_items WHERE sale_id=?`).bind(id).all()).results || [];
-    for (const it of its) if (it.product_id) await env.DB.prepare(`UPDATE bar_products SET stock = stock + ? WHERE id=?`).bind(it.qty, it.product_id).run();
-    await env.DB.prepare(`DELETE FROM bar_sale_items WHERE sale_id=?`).bind(id).run();
-    await env.DB.prepare(`DELETE FROM bar_sales WHERE id=?`).bind(id).run();
-    await deleteSourceEntry(env, 'bar', id);
+    await deleteBarSale(env, Number(bsMatch[1]));
     return json({ ok: true });
+  }
+
+  /* ----- Bar : comptes gérants (invitation/réinitialisation par e-mail) ----- */
+  if (path === '/api/admin/bar/managers' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT id, name, email, active, created_at FROM bar_managers ORDER BY name`).all();
+    return json(results || []);
+  }
+  if (path === '/api/admin/bar/managers' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const email = clean(b.email, 254).toLowerCase(), name = clean(b.name, 120);
+    if (!isValidEmail(email) || !name) return json({ error: 'E-mail valide et nom requis.' }, 400);
+    if (await env.DB.prepare(`SELECT id FROM bar_managers WHERE lower(email)=?`).bind(email).first())
+      return json({ error: 'Un gérant avec cet e-mail existe déjà.' }, 409);
+    const { hash, salt, iter } = await hashPassword(bytesToHex(crypto.getRandomValues(new Uint8Array(24))));
+    const r = await env.DB.prepare(`INSERT INTO bar_managers (name, email, pass_hash, pass_salt, pass_iter) VALUES (?,?,?,?,?)`)
+      .bind(name, email, hash, salt, iter).run();
+    try { await sendSetPasswordMail(env, 'bar', { id: r.meta.last_row_id, email, name }, 'invite', url.origin); return json({ ok: true, emailed: true }); }
+    catch (e) { return json({ ok: true, emailed: false, warning: String(e.message || e) }); }
+  }
+  const bmgMatch = path.match(/^\/api\/admin\/bar\/managers\/(\d+)$/);
+  if (bmgMatch && method === 'DELETE') {
+    await env.DB.prepare(`DELETE FROM bar_managers WHERE id=?`).bind(Number(bmgMatch[1])).run();
+    return json({ ok: true });
+  }
+  const bmgReset = path.match(/^\/api\/admin\/bar\/managers\/(\d+)\/reset$/);
+  if (bmgReset && method === 'POST') {
+    const a = await env.DB.prepare(`SELECT id, email, name FROM bar_managers WHERE id=?`).bind(Number(bmgReset[1])).first();
+    if (!a) return json({ error: 'Compte introuvable.' }, 404);
+    try { await sendSetPasswordMail(env, 'bar', a, 'reset', url.origin); return json({ ok: true }); }
+    catch (e) { return json({ error: String(e.message || e) }, 502); }
   }
 
   return json({ error: 'Route inconnue' }, 404);
@@ -1256,6 +1305,102 @@ async function syncDonationEntry(env, did) {
 }
 function csvCell(v) { const s = String(v == null ? '' : v); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
 
+async function recordBarSale(env, b) {
+  const sdate = clean(b.sdate, 20) || new Date().toISOString().slice(0, 10);
+  const note = clean(b.note, 300);
+  const items = Array.isArray(b.items) ? b.items : [];
+  let total = 0; const lines = [];
+  for (const it of items) {
+    const pid = parseInt(it.product_id, 10), qty = Number(it.qty) || 0;
+    if (!pid || qty <= 0) continue;
+    const p = await env.DB.prepare(`SELECT id, name, price FROM bar_products WHERE id=?`).bind(pid).first();
+    if (!p) continue;
+    total += p.price * qty; lines.push({ product_id: pid, name: p.name, qty, unit_price: p.price });
+  }
+  if (lines.length === 0) { const fa = Number(b.free_amount) || 0; if (fa > 0) total = fa; }
+  total = Math.round(total * 100) / 100;
+  if (total <= 0) return { error: 'Indiquez des produits vendus ou un montant.' };
+  const r = await env.DB.prepare(`INSERT INTO bar_sales (sdate, total, note) VALUES (?,?,?)`).bind(sdate, total, note || null).run();
+  const sid = r.meta.last_row_id;
+  for (const l of lines) {
+    await env.DB.prepare(`INSERT INTO bar_sale_items (sale_id, product_id, name, qty, unit_price) VALUES (?,?,?,?,?)`)
+      .bind(sid, l.product_id, l.name, l.qty, l.unit_price).run();
+    await env.DB.prepare(`UPDATE bar_products SET stock = stock - ? WHERE id=?`).bind(l.qty, l.product_id).run();
+  }
+  const caisse = await accountIdByCode(env, '531'), recettes = await accountIdByCode(env, '706');
+  if (caisse && recettes) await createEntry(env, {
+    edate: sdate, label: 'Recette du bar' + (note ? (' — ' + note) : ''), source: 'bar', source_id: sid,
+    lines: [{ account_id: caisse, debit: total, credit: 0 }, { account_id: recettes, debit: 0, credit: total }],
+  });
+  return { ok: true, id: sid, total };
+}
+async function deleteBarSale(env, id) {
+  const its = (await env.DB.prepare(`SELECT * FROM bar_sale_items WHERE sale_id=?`).bind(id).all()).results || [];
+  for (const it of its) if (it.product_id) await env.DB.prepare(`UPDATE bar_products SET stock = stock + ? WHERE id=?`).bind(it.qty, it.product_id).run();
+  await env.DB.prepare(`DELETE FROM bar_sale_items WHERE sale_id=?`).bind(id).run();
+  await env.DB.prepare(`DELETE FROM bar_sales WHERE id=?`).bind(id).run();
+  await deleteSourceEntry(env, 'bar', id);
+}
+async function handleBarManager(request, env, url, method, session) {
+  const path = url.pathname, mid = session.bid;
+  if (path === '/api/bar/manager/me' && method === 'GET') {
+    const m = await env.DB.prepare(`SELECT id, name, email FROM bar_managers WHERE id=?`).bind(mid).first();
+    return m ? json(m) : json({ error: 'Compte introuvable' }, 404);
+  }
+  if (path === '/api/bar/manager/consignes' && method === 'GET') return json({ consignes: (await getSetting(env, 'bar_consignes')) || '' });
+  if (path === '/api/bar/manager/consignes' && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    await env.DB.prepare(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('bar_consignes', ?, datetime('now'))`).bind(clean(b.consignes, 5000)).run();
+    return json({ ok: true });
+  }
+  if (path === '/api/bar/manager/products' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT * FROM bar_products ORDER BY sort, id`).all();
+    return json(results || []);
+  }
+  if (path === '/api/bar/manager/products' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 120);
+    if (!name) return json({ error: 'Nom du produit requis.' }, 400);
+    await env.DB.prepare(`INSERT INTO bar_products (name, price, stock, unit, sort) VALUES (?,?,?,?,?)`)
+      .bind(name, Number(b.price) || 0, Number(b.stock) || 0, clean(b.unit, 30) || null, parseInt(b.sort, 10) || 0).run();
+    return json({ ok: true });
+  }
+  const bpmS = path.match(/^\/api\/bar\/manager\/products\/(\d+)\/stock$/);
+  if (bpmS && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    if ('set' in b) await env.DB.prepare(`UPDATE bar_products SET stock=? WHERE id=?`).bind(Number(b.set) || 0, Number(bpmS[1])).run();
+    else if ('delta' in b) await env.DB.prepare(`UPDATE bar_products SET stock = stock + ? WHERE id=?`).bind(Number(b.delta) || 0, Number(bpmS[1])).run();
+    return json({ ok: true });
+  }
+  const bpmM = path.match(/^\/api\/bar\/manager\/products\/(\d+)$/);
+  if (bpmM && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 120);
+    if (!name) return json({ error: 'Nom requis.' }, 400);
+    await env.DB.prepare(`UPDATE bar_products SET name=?, price=?, unit=?, active=?, sort=? WHERE id=?`)
+      .bind(name, Number(b.price) || 0, clean(b.unit, 30) || null, b.active === 0 ? 0 : 1, parseInt(b.sort, 10) || 0, Number(bpmM[1])).run();
+    return json({ ok: true });
+  }
+  if (bpmM && method === 'DELETE') {
+    await env.DB.prepare(`DELETE FROM bar_products WHERE id=?`).bind(Number(bpmM[1])).run();
+    return json({ ok: true });
+  }
+  if (path === '/api/bar/manager/sales' && method === 'GET') {
+    const sales = (await env.DB.prepare(`SELECT * FROM bar_sales ORDER BY sdate DESC, id DESC`).all()).results || [];
+    const items = (await env.DB.prepare(`SELECT * FROM bar_sale_items`).all()).results || [];
+    const by = {}; items.forEach(i => { (by[i.sale_id] = by[i.sale_id] || []).push(i); });
+    sales.forEach(s => { s.items = by[s.id] || []; });
+    return json(sales);
+  }
+  if (path === '/api/bar/manager/sales' && method === 'POST') {
+    const r = await recordBarSale(env, await request.json().catch(() => ({})));
+    return r.error ? json({ error: r.error }, 400) : json(r);
+  }
+  const bsmM = path.match(/^\/api\/bar\/manager\/sales\/(\d+)$/);
+  if (bsmM && method === 'DELETE') { await deleteBarSale(env, Number(bsmM[1])); return json({ ok: true }); }
+  return json({ error: 'Route inconnue' }, 404);
+}
+
 /* ----------------------------- e-mails & jetons de mot de passe ----------------------------- */
 async function sha256Hex(s) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -1278,13 +1423,14 @@ async function sendMail(env, to, subject, html) {
   if (!res.ok) throw new Error('Envoi e-mail refusé : ' + (await res.text()).slice(0, 200));
   return true;
 }
-async function createAuthToken(env, adminId, kind, hours) {
+function acctTable(t) { return t === 'bar' ? 'bar_managers' : t === 'merchant' ? 'merchants' : 'admins'; }
+async function createAuthToken(env, accountType, accountId, kind, hours) {
   const raw = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
   const hash = await sha256Hex(raw);
   const exp = new Date(Date.now() + hours * 3600 * 1000).toISOString();
-  await env.DB.prepare(`DELETE FROM auth_tokens WHERE admin_id=? AND kind=? AND used=0`).bind(adminId, kind).run();
-  await env.DB.prepare(`INSERT INTO auth_tokens (admin_id, token_hash, kind, expires_at) VALUES (?,?,?,?)`)
-    .bind(adminId, hash, kind, exp).run();
+  await env.DB.prepare(`DELETE FROM auth_tokens WHERE account_type=? AND admin_id=? AND kind=? AND used=0`).bind(accountType, accountId, kind).run();
+  await env.DB.prepare(`INSERT INTO auth_tokens (account_type, admin_id, token_hash, kind, expires_at) VALUES (?,?,?,?,?)`)
+    .bind(accountType, accountId, hash, kind, exp).run();
   return raw;
 }
 async function getTemplate(env, key) {
@@ -1303,11 +1449,11 @@ async function sendTemplatedMail(env, to, key, vars, fallbackSubject) {
   const subject = (t && t.subject) || fallbackSubject || 'Les Amis de Montety';
   await sendMail(env, to, subject, wrapMail(fillTemplate(t && t.body, vars)));
 }
-async function sendSetPasswordMail(env, admin, kind, origin) {
-  const raw = await createAuthToken(env, admin.id, kind, kind === 'invite' ? 72 : 2);
+async function sendSetPasswordMail(env, accountType, account, kind, origin) {
+  const raw = await createAuthToken(env, accountType, account.id, kind, kind === 'invite' ? 72 : 2);
   const link = `${origin}/definir-mot-de-passe.html?token=${raw}`;
   const button = `<a href="${link}" style="display:inline-block;background:#CE6446;color:#fff;padding:12px 24px;border-radius:999px;text-decoration:none;font-weight:bold">Définir mon mot de passe</a><br><span style="color:#4E5C66;font-size:12px">Ou copiez&nbsp;: ${link}</span>`;
-  await sendTemplatedMail(env, admin.email, kind === 'invite' ? 'password_invite' : 'password_reset',
-    { name: escapeHtmlMail(admin.name), link: button },
-    kind === 'invite' ? 'Initialisez votre compte administrateur' : 'Réinitialisation de votre mot de passe');
+  await sendTemplatedMail(env, account.email, kind === 'invite' ? 'password_invite' : 'password_reset',
+    { name: escapeHtmlMail(account.name), link: button },
+    kind === 'invite' ? 'Initialisez votre compte' : 'Réinitialisation de votre mot de passe');
 }

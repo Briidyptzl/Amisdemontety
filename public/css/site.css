@@ -202,6 +202,7 @@ img { max-width: 100%; display: block; }
 }
 .footer-bottom a { display: inline-flex; align-items: center; gap: 6px; color: var(--ardoise-300); text-decoration: none; }
 .footer-bottom a:hover { color: var(--creme-50); }
+.footer-spaces { display: inline-flex; gap: 18px; flex-wrap: wrap; }
 .footer-bottom svg { width: 14px; height: 14px; }
 
 /* ——— Hero ——— */

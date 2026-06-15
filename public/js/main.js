@@ -69,7 +69,10 @@ function renderFooter() {
       </div>
       <div class="footer-bottom">
         <span>© ${new Date().getFullYear()} Les Amis de Montety</span>
-        <a href="admin.html"><span data-lucide="lock"></span> Espace administrateur</a>
+        <span class="footer-spaces">
+          <a href="admin.html"><span data-lucide="lock"></span> Administrateur</a>
+          <a href="bar-admin.html"><span data-lucide="beer"></span> Gérant de bar</a>
+        </span>
       </div>
     </div>`;
 }

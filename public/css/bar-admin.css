@@ -1,0 +1,76 @@
+/* ===========================================================
+   Espace gérant de bar — interface tactile (tablette)
+   =========================================================== */
+.bara { min-height: 100vh; display: flex; flex-direction: column; background: var(--creme-50); }
+.bara-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 12px 20px; background: var(--ardoise-900); color: var(--creme-50); position: sticky; top: 0; z-index: 10;
+}
+.bara-top .brand img { width: 34px; }
+.bara-top .brand span { font-family: var(--font-display); color: var(--creme-50); font-size: 1.1rem; }
+.bara-user { display: flex; align-items: center; gap: 14px; font-size: 0.95rem; }
+.bara-user .btn { color: var(--ardoise-200); }
+.bara-user .btn:hover { background: var(--ardoise-800); color: var(--creme-50); }
+
+.bara-tabs { display: flex; gap: 6px; padding: 10px 14px; background: var(--creme-100); border-bottom: 1px solid var(--color-border); position: sticky; top: 58px; z-index: 9; }
+.bara-tab {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: none; background: var(--color-surface); cursor: pointer; border-radius: var(--radius-md);
+  font-family: var(--font-body); font-weight: 700; font-size: 1.05rem; color: var(--encre-soft);
+  padding: 16px 10px; min-height: 60px; box-shadow: var(--shadow-xs);
+}
+.bara-tab svg { width: 22px; height: 22px; }
+.bara-tab.is-active { background: var(--brique-500); color: var(--creme-50); }
+
+.bara-content { padding: 18px; max-width: 1100px; width: 100%; margin: 0 auto; flex: 1; }
+.bara-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 22px; }
+.bara-card h2 { display: flex; align-items: center; gap: 10px; font-size: 1.4rem; margin: 0 0 16px; }
+.bara-card h2 svg { width: 22px; height: 22px; color: var(--brique-500); }
+.bara-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.bara-card-head h2 { margin: 0; }
+.consignes-text { font-size: 1.1rem; line-height: 1.6; color: var(--encre); margin-bottom: 18px; white-space: pre-wrap; }
+.consignes-input { width: 100%; box-sizing: border-box; font-family: var(--font-body); font-size: 1.05rem; padding: 12px; border: 1.5px solid var(--color-border-strong); border-radius: var(--radius-md); margin-bottom: 14px; }
+
+/* Caisse */
+.caisse-grid { display: grid; grid-template-columns: 1fr 340px; gap: 18px; align-items: start; }
+.caisse-products { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+.caisse-prod {
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-start; cursor: pointer;
+  background: var(--color-surface); border: 2px solid var(--color-border); border-radius: var(--radius-lg);
+  padding: 20px 16px; text-align: left; min-height: 96px; transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.caisse-prod:active { transform: scale(0.97); border-color: var(--brique-500); }
+.cp-name { font-family: var(--font-display); font-size: 1.2rem; color: var(--ardoise-800); }
+.cp-price { font-weight: 700; color: var(--brique-600); font-size: 1.05rem; }
+.cp-stock { font-size: 0.82rem; color: var(--color-text-muted); }
+.cp-stock.low { color: var(--brique-600); font-weight: 700; }
+.caisse-ticket { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 18px; position: sticky; top: 130px; }
+.caisse-ticket h3 { margin: 0 0 12px; font-size: 1.3rem; }
+.ticket-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--creme-200); }
+.tr-name { font-size: 1rem; }
+.tr-qty { display: inline-flex; align-items: center; gap: 10px; }
+.tr-sum { font-weight: 700; min-width: 64px; text-align: right; }
+.ticket-total { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-top: 2px solid var(--color-border); margin: 6px 0 12px; font-size: 1.1rem; }
+.ticket-total strong { font-size: 1.6rem; color: var(--ardoise-800); }
+
+/* boutons tactiles +/- */
+.qbtn { width: 40px; height: 40px; border-radius: var(--radius-md); border: 1.5px solid var(--color-border-strong); background: var(--creme-50); font-size: 1.4rem; font-weight: 700; cursor: pointer; color: var(--ardoise-700); line-height: 1; }
+.qbtn:active { background: var(--ardoise-100); }
+.qbtn.big { width: 52px; height: 52px; font-size: 1.6rem; }
+
+/* Stock */
+.stock-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.stock-item { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--creme-50); }
+.stock-item.is-off { opacity: 0.6; }
+.si-info { flex: 1; display: flex; flex-direction: column; }
+.si-name { font-family: var(--font-display); font-size: 1.2rem; color: var(--ardoise-800); }
+.si-meta { font-size: 0.88rem; color: var(--color-text-muted); }
+.si-stock { display: flex; align-items: center; gap: 14px; }
+.si-stock b { font-size: 1.5rem; min-width: 44px; text-align: center; cursor: pointer; }
+.si-stock b.low { color: var(--brique-600); }
+
+@media (max-width: 760px) {
+  .caisse-grid { grid-template-columns: 1fr; }
+  .caisse-ticket { position: static; }
+  .bara-tab { font-size: 0.95rem; padding: 14px 6px; }
+}

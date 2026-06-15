@@ -184,6 +184,16 @@ CREATE TABLE IF NOT EXISTS plan_levels (
 );
 -- devis.level_id référence l'étage où la punaise est posée (plan_x/plan_y en %).
 
+-- Gérants de bar (espace réservé distinct ; mot de passe par lien e-mail)
+CREATE TABLE IF NOT EXISTS bar_managers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
+  pass_hash TEXT NOT NULL, pass_salt TEXT NOT NULL, pass_iter INTEGER NOT NULL DEFAULT 100000,
+  active INTEGER NOT NULL DEFAULT 1, created_at TEXT DEFAULT (datetime('now'))
+);
+-- auth_tokens.account_type ('admin' | 'bar' | 'merchant') généralise les jetons.
+-- Consignes du chef de bar : settings 'bar_consignes'.
+
 -- Bar associatif : produits & stock, ventes (recettes → comptabilité 531/706)
 CREATE TABLE IF NOT EXISTS bar_products (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

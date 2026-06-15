@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Espace gérant de bar — Les Amis de Montety</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" href="assets/logo-montety.png" />
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/site.css" />
+<link rel="stylesheet" href="css/admin.css" />
+<link rel="stylesheet" href="css/bar-admin.css" />
+</head>
+<body class="admin-body">
+
+<!-- CONNEXION -->
+<div id="login-screen" class="login-screen" hidden>
+  <div class="login-card card">
+    <div class="medallion" style="width:84px;height:84px;margin:0 auto 16px"><img src="assets/logo-montety.png" alt="" style="width:54px" /></div>
+    <h1 style="font-size:1.6rem; text-align:center; margin:0 0 4px">Espace gérant de bar</h1>
+    <p style="text-align:center; color:var(--color-text-muted); margin:0 0 22px; font-size:0.95rem">Les Amis de Montety</p>
+    <form id="login-form" novalidate>
+      <div class="field"><label for="login-email">E-mail</label><input id="login-email" type="email" autocomplete="username" required /></div>
+      <div class="field" style="margin-bottom:18px"><label for="login-password">Mot de passe</label><input id="login-password" type="password" autocomplete="current-password" required /></div>
+      <div id="login-error" class="login-error" hidden></div>
+      <button class="btn btn--accent btn--lg btn--full" type="submit" id="login-submit">Se connecter</button>
+    </form>
+    <p style="text-align:center; margin-top:14px"><a href="#" id="forgot-link" style="font-size:0.9rem; color:var(--color-text-muted)">Mot de passe oublié ?</a></p>
+    <p style="text-align:center; margin-top:4px"><a href="index.html" style="font-size:0.9rem; color:var(--color-text-muted)">← Retour au site</a></p>
+  </div>
+</div>
+
+<!-- PORTAIL -->
+<div id="portal" class="bara" hidden>
+  <header class="bara-top">
+    <a class="brand" href="index.html"><img src="assets/logo-montety.png" alt="" /><span>Gérant de bar</span></a>
+    <div class="bara-user"><span id="bara-name">—</span><button class="btn btn--ghost btn--sm" id="logout-btn"><span data-lucide="log-out"></span> Quitter</button></div>
+  </header>
+  <nav class="bara-tabs" id="bara-tabs">
+    <button class="bara-tab is-active" data-view="board"><span data-lucide="clipboard-list"></span> Consignes</button>
+    <button class="bara-tab" data-view="caisse"><span data-lucide="calculator"></span> Caisse</button>
+    <button class="bara-tab" data-view="stock"><span data-lucide="package"></span> Stock</button>
+  </nav>
+  <main class="bara-content" id="bara-content"></main>
+</div>
+
+<!-- MODALE -->
+<div id="modal" class="modal-overlay" hidden><div class="modal-card card" id="modal-card"></div></div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="js/bar-admin.js"></script>
+</body>
+</html>

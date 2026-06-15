@@ -1032,7 +1032,7 @@ async function renderBar() {
 async function drawBar() {
   const c = $('#dash-content');
   const tab = (v, l) => `<button class="seg-btn ${BAR_TAB === v ? 'is-active' : ''}" data-btab="${v}">${l}</button>`;
-  c.innerHTML = `<div class="acc-toolbar"><div class="seg seg--wrap">${tab('caisse', 'Caisse')}${tab('stock', 'Produits & stock')}${tab('recettes', 'Recettes')}${tab('vitrine', 'Page publique')}</div>
+  c.innerHTML = `<div class="acc-toolbar"><div class="seg seg--wrap">${tab('caisse', 'Caisse')}${tab('stock', 'Produits & stock')}${tab('recettes', 'Recettes')}${tab('gerants', 'Gérants')}${tab('vitrine', 'Page publique')}</div>
     <a class="btn btn--ghost btn--sm" href="bar.html" target="_blank" rel="noopener"><span data-lucide="external-link"></span> Voir la page</a></div>
     <div id="bar-body"><p class="muted">Chargement…</p></div>`;
   $$('.seg-btn', c).forEach(b => b.addEventListener('click', () => { BAR_TAB = b.dataset.btab; drawBar(); }));
@@ -1041,6 +1041,7 @@ async function drawBar() {
   if (BAR_TAB === 'caisse') barCaisse(body);
   else if (BAR_TAB === 'stock') barStock(body);
   else if (BAR_TAB === 'recettes') await barRecettes(body);
+  else if (BAR_TAB === 'gerants') await barGerants(body);
   else await barVitrine(body);
   icons();
 }
@@ -1132,6 +1133,39 @@ async function barVitrine(body) {
     try { await api('/admin/settings', { method: 'PUT', body: JSON.stringify({ bar_description: f.bar_description.value.trim(), bar_hours: f.bar_hours.value.trim() }) }); toast('Page du bar enregistrée'); }
     catch (ex) { toast(ex.message, true); }
   });
+}
+
+async function barGerants(body) {
+  const list = await api('/admin/bar/managers');
+  body.innerHTML = `<div class="panel">
+    <div class="panel-head"><h3>Gérants de bar (${list.length})</h3><button class="btn btn--accent btn--sm" id="bg-add"><span data-lucide="user-plus"></span> Inviter un gérant</button></div>
+    <div class="panel-body">
+      <p class="muted" style="padding:0 22px">Les gérants accèdent à l'espace tactile <code>…/bar-admin.html</code> (caisse, stock, consignes). Ils choisissent eux-mêmes leur mot de passe via l'e-mail d'invitation.</p>
+      ${list.length ? `<table class="table"><thead><tr><th>Nom</th><th>E-mail</th><th class="col-actions">Actions</th></tr></thead><tbody>${list.map(g => `<tr><td class="cell-title">${esc(g.name)}</td><td class="muted">${esc(g.email)}</td><td class="col-actions"><button class="icon-btn" data-bgreset="${g.id}" title="Envoyer un lien de réinitialisation"><span data-lucide="mail"></span></button><button class="icon-btn danger" data-bgdel="${g.id}" title="Supprimer"><span data-lucide="trash-2"></span></button></td></tr>`).join('')}</tbody></table>` : '<div class="empty-state">Aucun gérant. Cliquez sur « Inviter un gérant ».</div>'}
+    </div></div>`;
+  $('#bg-add').addEventListener('click', () => {
+    openModal(`<h3>Inviter un gérant de bar</h3><form id="bg-form">
+      <div class="field"><label>Nom</label><input name="name" required></div>
+      <div class="field"><label>E-mail</label><input name="email" type="email" required></div>
+      <p class="hint">Un e-mail d'invitation sera envoyé. Le gérant choisira son mot de passe — vous ne le verrez pas.</p>
+      <div class="modal-actions"><button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button><button type="submit" class="btn btn--accent btn--md">Inviter</button></div></form>`);
+    $('#modal-cancel').addEventListener('click', closeModal);
+    $('#bg-form').addEventListener('submit', async e => {
+      e.preventDefault(); const f = e.target;
+      try { const r = await api('/admin/bar/managers', { method: 'POST', body: JSON.stringify({ name: f.name.value.trim(), email: f.email.value.trim() }) });
+        closeModal(); if (r.emailed) toast('Invitation envoyée'); else alert("Compte créé mais e-mail non envoyé : " + (r.warning || '')); drawBar();
+      } catch (ex) { toast(ex.message, true); }
+    });
+  });
+  $$('[data-bgreset]', body).forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Envoyer un lien de réinitialisation à ce gérant ?')) return;
+    try { await api('/admin/bar/managers/' + b.dataset.bgreset + '/reset', { method: 'POST', body: '{}' }); toast('Lien envoyé par e-mail'); } catch (ex) { toast(ex.message, true); }
+  }));
+  $$('[data-bgdel]', body).forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Supprimer ce gérant de bar ?')) return;
+    try { await api('/admin/bar/managers/' + b.dataset.bgdel, { method: 'DELETE' }); toast('Gérant supprimé'); drawBar(); } catch (ex) { toast(ex.message, true); }
+  }));
+  icons();
 }
 
 /* ----------------------------- Lieu de vie (devis) ----------------------------- */
