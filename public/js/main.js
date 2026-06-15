@@ -72,6 +72,7 @@ function renderFooter() {
         <span class="footer-spaces">
           <a href="admin.html"><span data-lucide="lock"></span> Administrateur</a>
           <a href="bar-admin.html"><span data-lucide="beer"></span> Gérant de bar</a>
+          <a href="commercants.html"><span data-lucide="store"></span> Espace commerçant</a>
         </span>
       </div>
     </div>`;
