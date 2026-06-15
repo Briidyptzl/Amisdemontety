@@ -112,6 +112,13 @@
 }
 .modal-card { width: 100%; max-width: 540px; padding: var(--space-7); margin: auto; }
 .modal-card h3 { margin: 0 0 18px; font-size: 1.5rem; }
+.help-doc { max-height: 60vh; overflow-y: auto; }
+.help-doc h4 { margin: 18px 0 6px; font-family: var(--font-body); font-size: 0.95rem; color: var(--ardoise-700); }
+.help-doc h4:first-child { margin-top: 0; }
+.help-doc p { margin: 0 0 8px; font-size: 0.92rem; color: var(--encre-soft); }
+.help-doc ol { margin: 0 0 10px; padding-left: 1.2rem; font-size: 0.92rem; color: var(--encre-soft); }
+.help-doc li { margin-bottom: 5px; }
+.help-doc code { background: var(--creme-100); padding: 1px 5px; border-radius: var(--radius-xs); font-size: 0.86rem; }
 .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
 
 /* ——— Toast ——— */

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://lesamisdemontety.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://lesamisdemontety.com/agenda.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://lesamisdemontety.com/quartier.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://lesamisdemontety.com/entraide.html</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lesamisdemontety.com/commercants.html</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://lesamisdemontety.com/bar.html</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://lesamisdemontety.com/adherer.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://lesamisdemontety.com/don.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://lesamisdemontety.com/contact.html</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+</urlset>

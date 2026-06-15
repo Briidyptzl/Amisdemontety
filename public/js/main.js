@@ -91,7 +91,37 @@ function refreshIcons() {
 }
 window.refreshIcons = refreshIcons;
 
+// Référencement : canonical, Open Graph, données structurées
+function injectSEO() {
+  const head = document.head;
+  const url = location.origin + location.pathname.replace(/index\.html$/, '');
+  const desc = (document.querySelector('meta[name="description"]') || {}).content || '';
+  const img = location.origin + '/assets/logo-montety.png';
+  const set = (sel, make) => { if (!document.querySelector(sel)) head.appendChild(make()); };
+  const meta = (attr, key, val) => { const m = document.createElement('meta'); m.setAttribute(attr, key); m.content = val; return m; };
+  set('link[rel="canonical"]', () => { const l = document.createElement('link'); l.rel = 'canonical'; l.href = url; return l; });
+  set('meta[property="og:title"]', () => meta('property', 'og:title', document.title));
+  set('meta[property="og:description"]', () => meta('property', 'og:description', desc));
+  set('meta[property="og:type"]', () => meta('property', 'og:type', 'website'));
+  set('meta[property="og:url"]', () => meta('property', 'og:url', url));
+  set('meta[property="og:image"]', () => meta('property', 'og:image', img));
+  set('meta[property="og:site_name"]', () => meta('property', 'og:site_name', 'Les Amis de Montety'));
+  set('meta[property="og:locale"]', () => meta('property', 'og:locale', 'fr_FR'));
+  set('meta[name="twitter:card"]', () => meta('name', 'twitter:card', 'summary'));
+  if (!document.getElementById('ld-org')) {
+    const s = document.createElement('script'); s.type = 'application/ld+json'; s.id = 'ld-org';
+    s.textContent = JSON.stringify({
+      '@context': 'https://schema.org', '@type': 'NGO', name: 'Les Amis de Montety',
+      url: location.origin + '/', logo: img, email: 'bonjour@lesamisdemontety.com',
+      address: { '@type': 'PostalAddress', streetAddress: '11 boulevard Commandant Nicolas', postalCode: '83000', addressLocality: 'Toulon', addressCountry: 'FR' },
+      description: 'Association de quartier intergénérationnelle à Toulon.',
+    });
+    document.head.appendChild(s);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  injectSEO();
   renderHeader();
   renderFooter();
   initNavToggle();

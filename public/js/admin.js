@@ -414,14 +414,15 @@ async function renderMemberships() {
   const list = await api('/admin/memberships');
   c.innerHTML = `
     <div class="panel">
-      <div class="panel-head"><h3>Demandes d'adhésion (${list.length})</h3></div>
+      <div class="panel-head"><h3>Membres & adhésions (${list.length})</h3><button class="btn btn--accent btn--sm" id="add-member"><span data-lucide="user-plus"></span> Ajouter un membre</button></div>
       <div class="panel-body">
         ${list.length ? `<table class="table">
-          <thead><tr><th>Nom</th><th>Contact</th><th>Paiement</th><th>Statut</th><th class="col-actions">Actions</th></tr></thead>
+          <thead><tr><th>Nom</th><th>Type</th><th>Contact</th><th>Paiement</th><th>Statut</th><th class="col-actions">Actions</th></tr></thead>
           <tbody>${list.map(memberRow).join('')}</tbody>
-        </table>` : `<div class="empty-state">Aucune demande pour l'instant.</div>`}
+        </table>` : `<div class="empty-state">Aucun membre pour l'instant.</div>`}
       </div>
     </div>`;
+  $('#add-member').addEventListener('click', () => memberModal());
   $$('[data-acc]', c).forEach(b => b.addEventListener('click', () => setMember(b.dataset.acc, 'accepted')));
   $$('[data-dec]', c).forEach(b => b.addEventListener('click', () => setMember(b.dataset.dec, 'declined')));
   $$('[data-pay]', c).forEach(b => b.addEventListener('click', () => paymentModal(list.find(m => m.id == b.dataset.pay))));
@@ -430,21 +431,49 @@ async function renderMemberships() {
   refreshBadges();
 }
 const PAY_LBL = { especes: 'Espèces', cheque: 'Chèque', virement: 'Virement', helloasso: 'HelloAsso', cb: 'Carte' };
+const MTYPE_LBL = { adherent: 'Adhérent', bienfaiteur: 'Bienfaiteur', donateur: 'Donateur', honneur: "Membre d'honneur" };
+const MTYPE_BADGE = { adherent: 'badge--ardoise', bienfaiteur: 'badge--ocre', donateur: 'badge--brique', honneur: 'badge--olive' };
+function memberModal() {
+  openModal(`<h3>Ajouter un membre</h3><form id="member-form">
+    <div class="form-grid2"><div class="field"><label>Prénom</label><input name="prenom" required></div><div class="field"><label>Nom</label><input name="nom" required></div></div>
+    <div class="field"><label>E-mail (facultatif)</label><input name="email" type="email"></div>
+    <div class="field"><label>Type de membre</label><select name="mtype">${Object.entries(MTYPE_LBL).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+    <div class="form-grid2"><div class="field"><label>Montant (€)</label><input name="amount" type="number" min="0" step="0.01"></div>
+      <div class="field"><label>Moyen</label><select name="pay_method"><option value="">—</option>${Object.entries(PAY_LBL).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div></div>
+    <div class="field"><label>Paiement</label><select name="pay_status"><option value="">Non payé</option><option value="attente">En attente d'encaissement</option><option value="encaisse">Encaissé</option></select></div>
+    <p class="hint">Un membre « encaissé » alimente automatiquement la comptabilité (cotisation 756).</p>
+    <div class="modal-actions"><button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button><button type="submit" class="btn btn--accent btn--md">Ajouter</button></div></form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#member-form').addEventListener('submit', async e => {
+    e.preventDefault(); const f = e.target;
+    try {
+      await api('/admin/memberships', { method: 'POST', body: JSON.stringify({
+        prenom: f.prenom.value.trim(), nom: f.nom.value.trim(), email: f.email.value.trim(),
+        mtype: f.mtype.value, amount: f.amount.value || null, pay_method: f.pay_method.value || null, pay_status: f.pay_status.value || null }) });
+      closeModal(); toast('Membre ajouté'); renderMemberships();
+    } catch (ex) { toast(ex.message, true); }
+  });
+}
 function paymentModal(m) {
+  const curPs = m.pay_status || (m.paid ? 'encaisse' : '');
   openModal(`
     <h3>Paiement — ${esc(m.prenom)} ${esc(m.nom)}</h3>
     <form id="pay-form">
+      <div class="field"><label>Type de membre</label><select name="mtype">${Object.entries(MTYPE_LBL).map(([k, v]) => `<option value="${k}" ${m.mtype === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
       <div class="form-grid2">
         <div class="field"><label>Montant (€)</label><input name="amount" type="number" min="0" step="0.01" value="${m.amount != null ? esc(m.amount) : ''}" /></div>
         <div class="field"><label>Moyen</label>
-          <select name="pay_method">
-            <option value="">—</option>
-            ${Object.entries(PAY_LBL).map(([k, v]) => `<option value="${k}" ${m.pay_method === k ? 'selected' : ''}>${v}</option>`).join('')}
-          </select>
+          <select name="pay_method"><option value="">—</option>${Object.entries(PAY_LBL).map(([k, v]) => `<option value="${k}" ${m.pay_method === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
         </div>
       </div>
-      <label style="display:flex; align-items:center; gap:8px; margin:4px 0"><input type="checkbox" name="paid" ${m.paid ? 'checked' : ''} style="width:auto" /> Encaissé / payé</label>
-      <p class="hint">Les adhésions encaissées (espèces, chèque, virement…) alimentent automatiquement la comptabilité.</p>
+      <div class="field"><label>État du paiement</label>
+        <select name="pay_status">
+          <option value="" ${!curPs ? 'selected' : ''}>Non payé</option>
+          <option value="attente" ${curPs === 'attente' ? 'selected' : ''}>En attente d'encaissement</option>
+          <option value="encaisse" ${curPs === 'encaisse' ? 'selected' : ''}>Encaissé</option>
+        </select>
+      </div>
+      <p class="hint">« Encaissé » alimente automatiquement la comptabilité (cotisation 756). « En attente » garde la trace d'un chèque reçu mais non déposé.</p>
       <div class="modal-actions">
         <button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button>
         <button type="submit" class="btn btn--accent btn--md">Enregistrer</button>
@@ -456,7 +485,7 @@ function paymentModal(m) {
     const f = e.target;
     try {
       await api('/admin/memberships/' + m.id, { method: 'PATCH', body: JSON.stringify({
-        amount: f.amount.value || null, pay_method: f.pay_method.value || null, paid: f.paid.checked ? 1 : 0 }) });
+        mtype: f.mtype.value, amount: f.amount.value || null, pay_method: f.pay_method.value || null, pay_status: f.pay_status.value || null }) });
       closeModal(); toast('Paiement enregistré'); renderMemberships();
     } catch (ex) { toast(ex.message, true); }
   });
@@ -464,12 +493,15 @@ function paymentModal(m) {
 function memberRow(m) {
   const badge = { pending: 'badge--ocre', accepted: 'badge--olive', declined: 'badge--brique' }[m.status] || 'badge--neutral';
   const label = { pending: 'En attente', accepted: 'Accepté', declined: 'Refusé' }[m.status] || m.status;
-  const pay = m.paid
-    ? `<span class="badge badge--olive badge--solid">${m.amount != null ? Number(m.amount).toLocaleString('fr-FR') + ' €' : 'Payé'}</span>${m.pay_method ? `<div class="cell-sub">${esc(PAY_LBL[m.pay_method] || m.pay_method)}</div>` : ''}`
-    : (m.amount != null ? `<span class="muted">${Number(m.amount).toLocaleString('fr-FR')} € — non encaissé</span>` : '<span class="cell-sub">—</span>');
+  const amt = m.amount != null ? Number(m.amount).toLocaleString('fr-FR') + ' €' : '';
+  let pay;
+  if (m.pay_status === 'encaisse' || m.paid) pay = `<span class="badge badge--olive badge--solid">${amt || 'Payé'}</span>${m.pay_method ? `<div class="cell-sub">${esc(PAY_LBL[m.pay_method] || m.pay_method)}</div>` : ''}`;
+  else if (m.pay_status === 'attente') pay = `<span class="badge badge--ocre">${amt || 'En attente'}</span><div class="cell-sub">en attente d'encaissement${m.pay_method ? ' · ' + esc(PAY_LBL[m.pay_method] || m.pay_method) : ''}</div>`;
+  else pay = (m.amount != null ? `<span class="muted">${amt} — non encaissé</span>` : '<span class="cell-sub">—</span>');
   return `<tr>
     <td><div class="cell-title">${esc(m.prenom)} ${esc(m.nom)}</div><div class="cell-sub">${esc(m.rue || '')}</div>${m.message ? `<div class="cell-sub">${esc(m.message)}</div>` : ''}</td>
-    <td><a href="mailto:${esc(m.email)}">${esc(m.email)}</a><div class="cell-sub">${fmtDateTime(m.created_at)}</div></td>
+    <td><span class="badge ${MTYPE_BADGE[m.mtype] || 'badge--neutral'}">${esc(MTYPE_LBL[m.mtype] || m.mtype || 'Adhérent')}</span></td>
+    <td>${m.email ? `<a href="mailto:${esc(m.email)}">${esc(m.email)}</a>` : '<span class="muted">—</span>'}<div class="cell-sub">${fmtDateTime(m.created_at)}</div></td>
     <td>${pay}</td>
     <td><span class="badge ${badge}">${esc(label)}</span></td>
     <td class="col-actions">
@@ -1349,6 +1381,34 @@ async function renderTemplates() {
 }
 
 /* ----------------------------- Réglages ----------------------------- */
+function mailHelpModal() {
+  openModal(`
+    <h3>Gérer les e-mails du quartier</h3>
+    <div class="help-doc">
+      <h4>1. Modifier les redirections (qui reçoit quoi)</h4>
+      <p>Les adresses <code>@lesamisdemontety.com</code> (bonjour@, contact@, president@, tresorier@…) sont <strong>redirigées</strong> vers de vraies boîtes Gmail. Pour changer la destination :</p>
+      <ol>
+        <li>Allez sur <a href="https://dash.cloudflare.com" target="_blank" rel="noopener">dash.cloudflare.com</a> → domaine <strong>lesamisdemontety.com</strong>.</li>
+        <li>Menu <strong>Email → Email Routing → Routing rules</strong>.</li>
+        <li>Sur une adresse, cliquez <strong>Edit</strong> et choisissez la boîte de destination (ex. <code>tresorier@</code> → le Gmail du trésorier). <strong>Create address</strong> pour en ajouter une.</li>
+        <li>Chaque boîte de destination reçoit un e-mail de confirmation à valider (une fois).</li>
+      </ol>
+
+      <h4>2. Envoyer depuis l'adresse pro avec Gmail</h4>
+      <p>Pour <strong>écrire</strong> avec <code>bonjour@lesamisdemontety.com</code> depuis Gmail :</p>
+      <ol>
+        <li>Gmail → ⚙️ <strong>Voir tous les paramètres → Comptes et importation</strong>.</li>
+        <li>« Envoyer des e-mails en tant que » → <strong>Ajouter une autre adresse e-mail</strong>.</li>
+        <li>Nom : <em>Les Amis de Montety</em> · Adresse : <code>bonjour@lesamisdemontety.com</code> · décochez « Traiter comme un alias ».</li>
+        <li>Serveur SMTP : <code>smtp.resend.com</code> · Port <strong>465</strong> (SSL) · Identifiant : <code>resend</code> · Mot de passe : <strong>votre clé Resend</strong> (la même qu'ici).</li>
+        <li>Validez. Vous pourrez alors choisir l'expéditeur dans Gmail.</li>
+      </ol>
+      <p class="muted">À noter : <code>noreply@</code> sert uniquement aux e-mails automatiques du site (invitations, reçus…), on n'y répond pas.</p>
+    </div>
+    <div class="modal-actions"><button type="button" class="btn btn--accent btn--md" id="modal-cancel">J'ai compris</button></div>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  icons();
+}
 async function renderSettings() {
   const c = $('#dash-content');
   c.innerHTML = '<p class="muted">Chargement…</p>';
@@ -1375,6 +1435,7 @@ async function renderSettings() {
           <div class="field"><label>Clé d'API d'envoi (Resend)</label><input name="resend_api_key" type="password" placeholder="${s.resend_configured ? '•••••••• (laisser vide pour conserver)' : 're_...'}" /><div class="hint">Collez votre clé Resend. Elle reste secrète, jamais réaffichée.</div></div>
           <button class="btn btn--accent btn--md" type="submit">Enregistrer</button>
         </form>
+        <button class="btn btn--secondary btn--sm" id="mail-help-btn" style="margin-top:16px"><span data-lucide="circle-help"></span> Aide : redirections & envoi depuis l'adresse pro</button>
       </div>
     </div>
     <div class="panel">
@@ -1395,6 +1456,7 @@ async function renderSettings() {
     try { await api('/admin/settings', { method: 'PUT', body: JSON.stringify(payload) }); toast('Configuration e-mail enregistrée'); renderSettings(); }
     catch (ex) { toast(ex.message, true); }
   });
+  $('#mail-help-btn').addEventListener('click', mailHelpModal);
   $('#settings-form').addEventListener('submit', async e => {
     e.preventDefault();
     const f = e.target;

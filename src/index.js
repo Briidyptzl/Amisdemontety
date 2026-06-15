@@ -514,18 +514,37 @@ async function handleAdmin(request, env, url, method, session) {
     const { results } = await env.DB.prepare(`SELECT * FROM memberships ORDER BY created_at DESC, id DESC`).all();
     return json(results || []);
   }
+  if (path === '/api/admin/memberships' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const prenom = clean(b.prenom, 120), nom = clean(b.nom, 120), email = clean(b.email, 254);
+    if (!prenom || !nom) return json({ error: 'Prénom et nom requis.' }, 400);
+    const mtype = ['adherent', 'bienfaiteur', 'donateur', 'honneur'].includes(b.mtype) ? b.mtype : 'adherent';
+    const amount = (b.amount === null || b.amount === '' || b.amount === undefined) ? null : Number(b.amount);
+    const pm = ['especes', 'cheque', 'virement', 'helloasso', 'cb'].includes(b.pay_method) ? b.pay_method : null;
+    const ps = ['attente', 'encaisse'].includes(b.pay_status) ? b.pay_status : null;
+    const paid = ps === 'encaisse' ? 1 : 0;
+    const r = await env.DB.prepare(
+      `INSERT INTO memberships (prenom, nom, email, mtype, status, amount, pay_method, pay_status, paid, paid_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`)
+      .bind(prenom, nom, email, mtype, 'accepted', amount, pm, ps, paid, paid ? new Date().toISOString().slice(0, 10) : null).run();
+    await syncMembershipEntry(env, r.meta.last_row_id);
+    return json({ ok: true, id: r.meta.last_row_id });
+  }
   const memMatch = path.match(/^\/api\/admin\/memberships\/(\d+)$/);
   if (memMatch && method === 'PATCH') {
     const id = Number(memMatch[1]);
     const b = await request.json().catch(() => ({}));
     if (b.status && ['pending', 'accepted', 'declined'].includes(b.status))
       await env.DB.prepare(`UPDATE memberships SET status=? WHERE id=?`).bind(b.status, id).run();
-    if ('amount' in b || 'pay_method' in b || 'paid' in b) {
+    if ('mtype' in b) await env.DB.prepare(`UPDATE memberships SET mtype=? WHERE id=?`)
+      .bind(['adherent', 'bienfaiteur', 'donateur', 'honneur'].includes(b.mtype) ? b.mtype : 'adherent', id).run();
+    if ('amount' in b || 'pay_method' in b || 'pay_status' in b || 'paid' in b) {
       const amount = (b.amount === null || b.amount === '' || b.amount === undefined) ? null : Number(b.amount);
       const pm = ['especes', 'cheque', 'virement', 'helloasso', 'cb'].includes(b.pay_method) ? b.pay_method : null;
-      const paid = b.paid ? 1 : 0;
-      await env.DB.prepare(`UPDATE memberships SET amount=?, pay_method=?, paid=?, paid_at=? WHERE id=?`)
-        .bind(amount, pm, paid, paid ? (clean(b.paid_at, 40) || new Date().toISOString().slice(0, 10)) : null, id).run();
+      const ps = ['attente', 'encaisse'].includes(b.pay_status) ? b.pay_status : null;
+      const paid = (ps === 'encaisse' || (b.paid && !ps)) ? 1 : 0;
+      await env.DB.prepare(`UPDATE memberships SET amount=?, pay_method=?, pay_status=?, paid=?, paid_at=? WHERE id=?`)
+        .bind(amount, pm, ps, paid, paid ? (clean(b.paid_at, 40) || new Date().toISOString().slice(0, 10)) : null, id).run();
       await syncMembershipEntry(env, id);
     }
     return json({ ok: true });
