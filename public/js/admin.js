@@ -124,12 +124,13 @@ async function init() {
 const VIEW_TITLES = {
   dashboard: 'Tableau de bord', events: 'Agenda', memberships: 'Adhésions',
   messages: 'Messages', donations: 'Dons', accounting: 'Comptabilité', listings: 'Entraide',
-  merchants: 'Commerçants', devis: 'Lieu de vie', admins: 'Administrateurs', settings: 'Réglages',
+  merchants: 'Commerçants', devis: 'Lieu de vie', admins: 'Administrateurs',
+  templates: 'Modèles', settings: 'Réglages',
 };
 function switchView(view) {
   $$('.dash-nav__item').forEach(b => b.classList.toggle('is-active', b.dataset.view === view));
   $('#view-title').textContent = VIEW_TITLES[view] || '';
-  const render = { dashboard: renderDashboard, events: renderEvents, memberships: renderMemberships, messages: renderMessages, donations: renderDonations, accounting: renderAccounting, listings: renderAdminListings, merchants: renderAdminMerchants, devis: renderDevis, admins: renderAdmins, settings: renderSettings }[view];
+  const render = { dashboard: renderDashboard, events: renderEvents, memberships: renderMemberships, messages: renderMessages, donations: renderDonations, accounting: renderAccounting, listings: renderAdminListings, merchants: renderAdminMerchants, devis: renderDevis, admins: renderAdmins, templates: renderTemplates, settings: renderSettings }[view];
   if (render) render();
 }
 
@@ -559,6 +560,7 @@ async function renderDonations() {
     </div>`;
   $('#add-don').addEventListener('click', donModal);
   $$('[data-deldon]', c).forEach(b => b.addEventListener('click', () => delDon(b.dataset.deldon)));
+  $$('[data-thank]', c).forEach(b => b.addEventListener('click', () => thankDon(b.dataset.thank)));
   icons();
 }
 function donRow(d) {
@@ -567,8 +569,17 @@ function donRow(d) {
     <td class="cell-title">${(Number(d.amount) || 0).toLocaleString('fr-FR')} €</td>
     <td class="muted">${esc(d.method)}</td>
     <td class="muted">${fmtDate(d.donated_at)}</td>
-    <td class="col-actions"><button class="icon-btn danger" data-deldon="${d.id}" title="Supprimer"><span data-lucide="trash-2"></span></button></td>
+    <td class="col-actions">
+      <a class="icon-btn" href="/api/admin/donations/${d.id}/attestation" target="_blank" rel="noopener" title="Reçu fiscal"><span data-lucide="receipt"></span></a>
+      ${d.email ? `<button class="icon-btn" data-thank="${d.id}" title="Envoyer un remerciement"><span data-lucide="mail"></span></button>` : ''}
+      <button class="icon-btn danger" data-deldon="${d.id}" title="Supprimer"><span data-lucide="trash-2"></span></button>
+    </td>
   </tr>`;
+}
+async function thankDon(id) {
+  if (!confirm('Envoyer un e-mail de remerciement à ce donateur ?')) return;
+  try { await api('/admin/donations/' + id + '/thank', { method: 'POST', body: '{}' }); toast('Remerciement envoyé'); }
+  catch (ex) { toast(ex.message, true); }
 }
 function donModal() {
   openModal(`
@@ -1152,6 +1163,40 @@ async function delAdmin(id) {
   if (!confirm('Supprimer cet administrateur ?')) return;
   try { await api('/admin/admins/' + id, { method: 'DELETE' }); toast('Administrateur supprimé'); renderAdmins(); }
   catch (ex) { toast(ex.message, true); }
+}
+
+/* ----------------------------- Modèles ----------------------------- */
+const TPL_META = {
+  password_invite: { label: 'Invitation administrateur', ph: '{{name}}, {{link}}', email: true },
+  password_reset: { label: 'Réinitialisation du mot de passe', ph: '{{name}}, {{link}}', email: true },
+  membership_welcome: { label: 'Accusé de réception — adhésion', ph: '{{name}}', email: true },
+  contact_ack: { label: 'Accusé de réception — contact', ph: '{{name}}', email: true },
+  thank_you: { label: 'Remerciement de don', ph: '{{name}}, {{amount}}', email: true },
+  attestation_don: { label: 'Reçu fiscal / attestation de don', ph: '{{donor_name}}, {{amount}}, {{date}}, {{method}}, {{receipt_no}}, {{assoc_name}}, {{assoc_address}}, {{today}}, {{year}}', email: false },
+};
+async function renderTemplates() {
+  const c = $('#dash-content'); c.innerHTML = '<p class="muted">Chargement…</p>';
+  const tpls = await api('/admin/templates');
+  c.innerHTML = `<p class="hint" style="margin-bottom:18px">Les variables entre doubles accolades (ex. <code>{{name}}</code>) sont remplacées automatiquement. <code>{{link}}</code> insère le bouton du lien.</p>` +
+    tpls.map(t => {
+      const m = TPL_META[t.key] || { label: t.key, ph: '', email: true };
+      return `<div class="panel" style="margin-bottom:20px"><div class="panel-head"><h3>${esc(m.label)}</h3>${m.email ? '<span class="badge badge--ardoise">E-mail</span>' : '<span class="badge badge--ocre">Document</span>'}</div>
+        <div class="panel-body" style="padding:22px"><form data-tplform="${t.key}">
+          ${m.email ? `<div class="field"><label>Objet</label><input name="subject" value="${esc(t.subject || '')}"></div>` : ''}
+          <div class="field"><label>${m.email ? 'Message' : 'Contenu (HTML)'}</label><textarea name="body" rows="${m.email ? 7 : 14}"${m.email ? '' : ' style="font-family:monospace;font-size:0.85rem"'}>${esc(t.body || '')}</textarea></div>
+          <p class="hint">Variables disponibles : ${esc(m.ph) || 'aucune'}</p>
+          <button class="btn btn--accent btn--sm" type="submit">Enregistrer</button>
+        </form></div></div>`;
+    }).join('');
+  $$('[data-tplform]', c).forEach(f => f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const key = f.getAttribute('data-tplform');
+    const payload = { body: f.body.value };
+    if (f.subject) payload.subject = f.subject.value;
+    try { await api('/admin/templates/' + key, { method: 'PUT', body: JSON.stringify(payload) }); toast('Modèle enregistré'); }
+    catch (ex) { toast(ex.message, true); }
+  }));
+  icons();
 }
 
 /* ----------------------------- Réglages ----------------------------- */

@@ -218,6 +218,7 @@ async function handleApi(request, env, url) {
     await env.DB.prepare(
       `INSERT INTO contact_messages (name, email, subject, message) VALUES (?,?,?,?)`)
       .bind(name, email, subject, message).run();
+    try { await sendTemplatedMail(env, email, 'contact_ack', { name: escapeHtmlMail(name) }, 'Message bien reçu'); } catch (_) {}
     return json({ ok: true });
   }
 
@@ -231,6 +232,7 @@ async function handleApi(request, env, url) {
     await env.DB.prepare(
       `INSERT INTO memberships (prenom, nom, email, rue, message) VALUES (?,?,?,?,?)`)
       .bind(prenom, nom, email, rue, message).run();
+    try { await sendTemplatedMail(env, email, 'membership_welcome', { name: escapeHtmlMail(prenom) }, 'Bienvenue chez Les Amis de Montety'); } catch (_) {}
     return json({ ok: true });
   }
 
@@ -856,6 +858,52 @@ async function handleAdmin(request, env, url, method, session) {
     return json({ ok: true });
   }
 
+  /* ----- Modèles (e-mails & attestation fiscale) ----- */
+  if (path === '/api/admin/templates' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT key, subject, body FROM templates ORDER BY key`).all();
+    return json(results || []);
+  }
+  const tplMatch = path.match(/^\/api\/admin\/templates\/([a-z_]+)$/);
+  if (tplMatch && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    await env.DB.prepare(`UPDATE templates SET subject=?, body=?, updated_at=datetime('now') WHERE key=?`)
+      .bind(clean(b.subject, 200), clean(b.body, 20000), tplMatch[1]).run();
+    return json({ ok: true });
+  }
+
+  /* ----- Dons : remerciement & reçu fiscal ----- */
+  const donThank = path.match(/^\/api\/admin\/donations\/(\d+)\/thank$/);
+  if (donThank && method === 'POST') {
+    const d = await env.DB.prepare(`SELECT * FROM donations WHERE id=?`).bind(Number(donThank[1])).first();
+    if (!d) return json({ error: 'Don introuvable.' }, 404);
+    if (!d.email) return json({ error: "Ce don n'a pas d'adresse e-mail." }, 400);
+    try {
+      await sendTemplatedMail(env, d.email, 'thank_you',
+        { name: escapeHtmlMail(d.donor || 'cher donateur'), amount: escapeHtmlMail((Number(d.amount) || 0).toLocaleString('fr-FR') + ' €') }, 'Merci pour votre don');
+      return json({ ok: true });
+    } catch (e) { return json({ error: String(e.message || e) }, 502); }
+  }
+  const donAtt = path.match(/^\/api\/admin\/donations\/(\d+)\/attestation$/);
+  if (donAtt && method === 'GET') {
+    const d = await env.DB.prepare(`SELECT * FROM donations WHERE id=?`).bind(Number(donAtt[1])).first();
+    if (!d) return new Response('Don introuvable', { status: 404 });
+    const t = await getTemplate(env, 'attestation_don');
+    const methodLbl = { especes: 'espèces', cheque: 'chèque', virement: 'virement', helloasso: 'HelloAsso', cb: 'carte' }[d.method] || d.method || 'numéraire';
+    const date = (d.donated_at || '').slice(0, 10);
+    const vars = {
+      receipt_no: 'DON-' + String(d.id).padStart(4, '0'),
+      assoc_name: 'Les Amis de Montety',
+      assoc_address: (await getSetting(env, 'assoc_address')) || '11 boulevard Commandant Nicolas, 83000 Toulon',
+      donor_name: d.donor || 'Anonyme',
+      amount: (Number(d.amount) || 0).toLocaleString('fr-FR') + ' €',
+      date: date.split('-').reverse().join('/'), method: methodLbl,
+      today: new Date().toLocaleDateString('fr-FR'), year: date.slice(0, 4),
+    };
+    const body = ((t && t.body) || '').replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars) ? String(vars[k]) : m);
+    const page = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Reçu fiscal — ${vars.receipt_no}</title><style>body{background:#fff;margin:0;padding:20px}@media print{.noprint{display:none}}</style></head><body>${body}<div class="noprint" style="text-align:center;margin:24px"><button onclick="window.print()" style="padding:10px 20px">Imprimer / Enregistrer en PDF</button></div></body></html>`;
+    return new Response(page, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  }
+
   return json({ error: 'Route inconnue' }, 404);
 }
 
@@ -1099,21 +1147,27 @@ async function createAuthToken(env, adminId, kind, hours) {
     .bind(adminId, hash, kind, exp).run();
   return raw;
 }
+async function getTemplate(env, key) {
+  return await env.DB.prepare(`SELECT subject, body FROM templates WHERE key=?`).bind(key).first();
+}
+function wrapMail(inner) {
+  return `<div style="font-family:Arial,Helvetica,sans-serif;color:#233640;max-width:560px;line-height:1.55">
+    <h2 style="color:#29414E;margin:0 0 14px">Les Amis de Montety</h2>${inner}</div>`;
+}
+function fillTemplate(text, vars) {
+  const html = escapeHtmlMail(text || '').replace(/\r?\n/g, '<br>');
+  return html.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars) ? vars[k] : m);
+}
+async function sendTemplatedMail(env, to, key, vars, fallbackSubject) {
+  const t = await getTemplate(env, key);
+  const subject = (t && t.subject) || fallbackSubject || 'Les Amis de Montety';
+  await sendMail(env, to, subject, wrapMail(fillTemplate(t && t.body, vars)));
+}
 async function sendSetPasswordMail(env, admin, kind, origin) {
   const raw = await createAuthToken(env, admin.id, kind, kind === 'invite' ? 72 : 2);
   const link = `${origin}/definir-mot-de-passe.html?token=${raw}`;
-  const invite = kind === 'invite';
-  const intro = invite
-    ? "Un compte administrateur vient d'être créé pour vous sur le site des Amis de Montety."
-    : 'Une réinitialisation de votre mot de passe administrateur a été demandée.';
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#233640;max-width:520px">
-    <h2 style="color:#29414E">Les Amis de Montety</h2>
-    <p>Bonjour ${escapeHtmlMail(admin.name)},</p>
-    <p>${intro}</p>
-    <p>Cliquez sur le bouton ci-dessous pour ${invite ? 'initialiser' : 'réinitialiser'} votre mot de passe&nbsp;:</p>
-    <p><a href="${link}" style="display:inline-block;background:#CE6446;color:#fff;padding:12px 24px;border-radius:999px;text-decoration:none;font-weight:bold">Définir mon mot de passe</a></p>
-    <p style="color:#4E5C66;font-size:13px">Ou copiez ce lien&nbsp;: ${link}</p>
-    <p style="color:#4E5C66;font-size:13px">Ce lien expire dans ${invite ? '72 heures' : '2 heures'}. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>
-  </div>`;
-  await sendMail(env, admin.email, invite ? 'Initialisez votre compte administrateur' : 'Réinitialisation de votre mot de passe', html);
+  const button = `<a href="${link}" style="display:inline-block;background:#CE6446;color:#fff;padding:12px 24px;border-radius:999px;text-decoration:none;font-weight:bold">Définir mon mot de passe</a><br><span style="color:#4E5C66;font-size:12px">Ou copiez&nbsp;: ${link}</span>`;
+  await sendTemplatedMail(env, admin.email, kind === 'invite' ? 'password_invite' : 'password_reset',
+    { name: escapeHtmlMail(admin.name), link: button },
+    kind === 'invite' ? 'Initialisez votre compte administrateur' : 'Réinitialisation de votre mot de passe');
 }

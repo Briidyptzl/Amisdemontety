@@ -176,6 +176,14 @@ CREATE TABLE IF NOT EXISTS devis (
 );
 -- L'image du plan est stockée dans settings (clé 'plan_lieu_key').
 
+-- Modèles d'e-mails et d'attestation fiscale (éditables dans l'admin)
+CREATE TABLE IF NOT EXISTS templates (
+  key        TEXT PRIMARY KEY,              -- password_invite / password_reset / membership_welcome / contact_ack / thank_you / attestation_don
+  subject    TEXT,
+  body       TEXT,
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
 -- Jetons d'invitation / réinitialisation de mot de passe (lien par e-mail)
 CREATE TABLE IF NOT EXISTS auth_tokens (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
