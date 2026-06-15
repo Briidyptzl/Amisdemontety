@@ -991,12 +991,13 @@ function accountModal() {
 async function delAccount(id) { if (!confirm('Supprimer ce compte ?')) return; try { await api('/admin/accounting/accounts/' + id, { method: 'DELETE' }); ACC_ACCOUNTS = await api('/admin/accounting/accounts'); toast('Compte supprimé'); drawAccounting(); } catch (ex) { toast(ex.message, true); } }
 
 /* ----------------------------- Lieu de vie (devis) ----------------------------- */
-let DEVIS_LIST = [], DEVIS_PLAN = '', PLACING = null;
+let DEVIS_LIST = [], LEVELS = [], CURRENT_LEVEL = null, PLACING = null;
 function devisStatusBadge(s) { return s === 'valide' ? '<span class="badge badge--olive">Validé</span>' : s === 'refuse' ? '<span class="badge badge--brique">Refusé</span>' : '<span class="badge badge--ocre">À valider</span>'; }
 async function renderDevis() {
   const c = $('#dash-content'); c.innerHTML = '<p class="muted">Chargement…</p>';
-  const [list, settings] = await Promise.all([api('/admin/devis'), api('/admin/settings')]);
-  DEVIS_LIST = list; DEVIS_PLAN = settings.plan_lieu_key || ''; PLACING = null;
+  const [list, levels] = await Promise.all([api('/admin/devis'), api('/admin/levels')]);
+  DEVIS_LIST = list; LEVELS = levels; PLACING = null;
+  if (!LEVELS.find(l => l.id === CURRENT_LEVEL)) CURRENT_LEVEL = LEVELS.length ? LEVELS[0].id : null;
   drawDevis();
 }
 function drawDevis() {
@@ -1005,6 +1006,8 @@ function drawDevis() {
   const valides = DEVIS_LIST.filter(d => d.status === 'valide');
   const totalValide = valides.reduce((s, d) => s + (Number(d.amount) || 0), 0);
   const badge = $('#badge-devis'); if (badge) { badge.textContent = aValider; badge.hidden = !aValider; }
+  const cur = LEVELS.find(l => l.id === CURRENT_LEVEL) || null;
+  const placeTitle = (DEVIS_LIST.find(d => d.id == PLACING) || {}).title || '';
   c.innerHTML = `
     <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">
       <div class="stat-card card"><div class="stat-ic"><span data-lucide="file-clock"></span></div><div class="stat-val">${aValider}</div><div class="stat-lbl">Devis à valider</div></div>
@@ -1016,11 +1019,19 @@ function drawDevis() {
       <div class="panel-body">${DEVIS_LIST.length ? `<table class="table"><thead><tr><th>Devis</th><th>Lot</th><th>Montant</th><th>Statut</th><th class="col-actions">Actions</th></tr></thead><tbody>${DEVIS_LIST.map(devisRow).join('')}</tbody></table>` : '<div class="empty-state">Aucun devis. Cliquez sur « Ajouter un devis ».</div>'}</div>
     </div>
     <div class="panel">
-      <div class="panel-head"><h3>Plan du lieu de vie</h3>
-        <span style="display:flex;gap:8px"><input type="file" id="plan-input" accept="image/*" hidden><button class="btn btn--secondary btn--sm" id="plan-btn"><span data-lucide="image-up"></span> ${DEVIS_PLAN ? 'Changer le plan' : 'Ajouter un plan'}</button></span></div>
+      <div class="panel-head"><h3>Plan du lieu de vie</h3><button class="btn btn--accent btn--sm" id="lvl-add"><span data-lucide="plus"></span> Ajouter un étage</button></div>
       <div class="panel-body" style="padding:22px">
-        ${PLACING ? `<p class="hint" style="color:var(--brique-600)">📍 Cliquez sur le plan pour placer « ${esc((DEVIS_LIST.find(d => d.id == PLACING) || {}).title || '')} » — ou <a href="#" id="cancel-place">annuler</a>.</p>` : '<p class="muted" style="margin-top:0">Pour placer un devis : bouton 📍 dans la liste, puis cliquez à l\'endroit voulu sur le plan. Cliquez une punaise pour la retirer.</p>'}
-        ${DEVIS_PLAN ? `<div class="plan-wrap ${PLACING ? 'placing' : ''}" id="plan-wrap"><img src="/img/${esc(DEVIS_PLAN)}" alt="Plan du lieu de vie">${DEVIS_LIST.filter(d => d.plan_x != null && d.plan_y != null).map(planPin).join('')}</div>` : '<div class="empty-state">Aucun plan chargé. Cliquez sur « Ajouter un plan » (image PNG/JPG).</div>'}
+        ${LEVELS.length ? `<div class="lvl-tabs">${LEVELS.map(l => { const n = DEVIS_LIST.filter(d => d.level_id === l.id && d.plan_x != null).length; return `<button class="lvl-tab ${l.id === CURRENT_LEVEL ? 'is-active' : ''}" data-lvl="${l.id}">${esc(l.name)}${n ? ` <span class="lvl-count">${n}</span>` : ''}</button>`; }).join('')}</div>` : ''}
+        ${cur ? `
+          <div class="lvl-bar">
+            <input type="file" id="lvl-img-input" accept="image/*" hidden>
+            <button class="btn btn--secondary btn--sm" id="lvl-img-btn"><span data-lucide="image-up"></span> ${cur.image_key ? "Changer l'image" : "Ajouter une image"}</button>
+            <button class="btn btn--ghost btn--sm" id="lvl-rename"><span data-lucide="pencil"></span> Renommer</button>
+            <button class="btn btn--ghost btn--sm" id="lvl-del" style="color:var(--brique-600)"><span data-lucide="trash-2"></span> Supprimer cet étage</button>
+          </div>
+          ${PLACING ? `<p class="hint" style="color:var(--brique-600)">📍 Cliquez sur le plan « ${esc(cur.name)} » pour placer « ${esc(placeTitle)} » — ou <a href="#" id="cancel-place">annuler</a>.</p>` : '<p class="muted" style="margin-top:0">Bouton 📍 dans la liste d\'un devis, puis cliquez sur le plan de l\'étage voulu. Cliquez une punaise pour la retirer.</p>'}
+          ${cur.image_key ? `<div class="plan-wrap ${PLACING ? 'placing' : ''}" id="plan-wrap"><img src="/img/${esc(cur.image_key)}" alt="${esc(cur.name)}">${DEVIS_LIST.filter(d => d.level_id === cur.id && d.plan_x != null && d.plan_y != null).map(planPin).join('')}</div>` : '<div class="empty-state">Aucune image pour cet étage. Cliquez sur « Ajouter une image » (PNG/JPG).</div>'}
+        ` : '<div class="empty-state">Aucun étage. Cliquez sur « Ajouter un étage » (rez-de-chaussée, 1er étage, combles, extérieur…).</div>'}
       </div>
     </div>`;
   $('#dev-add').addEventListener('click', () => devisModal());
@@ -1028,22 +1039,31 @@ function drawDevis() {
   $$('[data-drefus]', c).forEach(b => b.addEventListener('click', () => setDevis(b.dataset.drefus, 'refuse')));
   $$('[data-dedit]', c).forEach(b => b.addEventListener('click', () => devisModal(DEVIS_LIST.find(d => d.id == b.dataset.dedit))));
   $$('[data-ddel]', c).forEach(b => b.addEventListener('click', () => delDevis(b.dataset.ddel)));
-  $$('[data-dplace]', c).forEach(b => b.addEventListener('click', () => { PLACING = b.dataset.dplace; drawDevis(); }));
+  $$('[data-dplace]', c).forEach(b => b.addEventListener('click', () => {
+    if (!LEVELS.length) { alert("Ajoutez d'abord un étage avec une image de plan."); return; }
+    PLACING = b.dataset.dplace; drawDevis();
+  }));
+  $$('[data-lvl]', c).forEach(b => b.addEventListener('click', () => { CURRENT_LEVEL = Number(b.dataset.lvl); drawDevis(); }));
+  $('#lvl-add').addEventListener('click', addLevel);
+  const lr = $('#lvl-rename'); if (lr) lr.addEventListener('click', renameLevel);
+  const ld = $('#lvl-del'); if (ld) ld.addEventListener('click', deleteLevel);
+  const li = $('#lvl-img-input'), lib = $('#lvl-img-btn');
+  if (lib) {
+    lib.addEventListener('click', () => li.click());
+    li.addEventListener('change', async () => {
+      if (!li.files[0]) return; lib.disabled = true; lib.textContent = 'Envoi…';
+      try { const key = await adminUpload(li.files[0]); await api('/admin/levels/' + CURRENT_LEVEL, { method: 'PUT', body: JSON.stringify({ image_key: key }) }); const l = LEVELS.find(x => x.id === CURRENT_LEVEL); if (l) l.image_key = key; drawDevis(); }
+      catch (ex) { alert(ex.message); lib.disabled = false; }
+    });
+  }
   const cp = $('#cancel-place'); if (cp) cp.addEventListener('click', e => { e.preventDefault(); PLACING = null; drawDevis(); });
-  const pi = $('#plan-input'), pb = $('#plan-btn');
-  pb.addEventListener('click', () => pi.click());
-  pi.addEventListener('change', async () => {
-    if (!pi.files[0]) return; pb.disabled = true; pb.textContent = 'Envoi…';
-    try { const key = await adminUpload(pi.files[0]); await api('/admin/settings', { method: 'PUT', body: JSON.stringify({ plan_lieu_key: key }) }); DEVIS_PLAN = key; drawDevis(); }
-    catch (ex) { alert(ex.message); pb.disabled = false; pb.textContent = 'Ajouter un plan'; }
-  });
   const wrap = $('#plan-wrap');
   if (wrap && PLACING) wrap.addEventListener('click', async e => {
     if (e.target.closest('.plan-pin')) return;
     const r = wrap.getBoundingClientRect();
     const x = ((e.clientX - r.left) / r.width) * 100, y = ((e.clientY - r.top) / r.height) * 100;
-    try { await api('/admin/devis/' + PLACING + '/position', { method: 'POST', body: JSON.stringify({ plan_x: x, plan_y: y }) });
-      const d = DEVIS_LIST.find(dd => dd.id == PLACING); if (d) { d.plan_x = x; d.plan_y = y; } PLACING = null; drawDevis(); }
+    try { await api('/admin/devis/' + PLACING + '/position', { method: 'POST', body: JSON.stringify({ level_id: CURRENT_LEVEL, plan_x: x, plan_y: y }) });
+      const d = DEVIS_LIST.find(dd => dd.id == PLACING); if (d) { d.level_id = CURRENT_LEVEL; d.plan_x = x; d.plan_y = y; } PLACING = null; drawDevis(); }
     catch (ex) { alert(ex.message); }
   });
   $$('.plan-pin', c).forEach(p => p.addEventListener('click', e => {
@@ -1052,12 +1072,29 @@ function drawDevis() {
   }));
   icons();
 }
+async function addLevel() {
+  const name = prompt("Nom du nouvel étage (ex. 1er étage, Combles, Extérieur) :");
+  if (!name) return;
+  try { const r = await api('/admin/levels', { method: 'POST', body: JSON.stringify({ name: name.trim() }) }); LEVELS = await api('/admin/levels'); CURRENT_LEVEL = r.id; drawDevis(); }
+  catch (ex) { toast(ex.message, true); }
+}
+async function renameLevel() {
+  const cur = LEVELS.find(l => l.id === CURRENT_LEVEL); if (!cur) return;
+  const name = prompt("Renommer l'étage :", cur.name); if (!name) return;
+  try { await api('/admin/levels/' + cur.id, { method: 'PUT', body: JSON.stringify({ name: name.trim() }) }); cur.name = name.trim(); drawDevis(); }
+  catch (ex) { toast(ex.message, true); }
+}
+async function deleteLevel() {
+  if (!confirm("Supprimer cet étage ? Les punaises de devis placées dessus seront retirées.")) return;
+  try { await api('/admin/levels/' + CURRENT_LEVEL, { method: 'DELETE' }); LEVELS = await api('/admin/levels'); DEVIS_LIST = await api('/admin/devis'); CURRENT_LEVEL = LEVELS.length ? LEVELS[0].id : null; drawDevis(); }
+  catch (ex) { toast(ex.message, true); }
+}
 function devisRow(d) {
   return `<tr>
     <td><div class="cell-title">${esc(d.title)}</div><div class="cell-sub">${esc(d.supplier || '')}</div>${d.document_key ? `<a href="/img/${esc(d.document_key)}" target="_blank" class="cell-sub" style="color:var(--ardoise-700)">📎 Document</a>` : ''}</td>
     <td class="muted">${esc(d.lot || '—')}</td>
     <td class="cell-title">${d.amount != null ? eur(d.amount) : '—'}</td>
-    <td>${devisStatusBadge(d.status)}${d.plan_x != null ? ' <span class="badge badge--ardoise">📍</span>' : ''}</td>
+    <td>${devisStatusBadge(d.status)}${d.plan_x != null ? ` <span class="badge badge--ardoise">📍 ${esc((LEVELS.find(l => l.id === d.level_id) || {}).name || '')}</span>` : ''}</td>
     <td class="col-actions">
       ${d.status !== 'valide' ? `<button class="icon-btn ok" data-dvalid="${d.id}" title="Valider"><span data-lucide="check"></span></button>` : ''}
       ${d.status !== 'refuse' ? `<button class="icon-btn" data-drefus="${d.id}" title="Refuser"><span data-lucide="x"></span></button>` : ''}

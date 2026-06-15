@@ -854,7 +854,36 @@ async function handleAdmin(request, env, url, method, session) {
   if (dvPos && method === 'POST') {
     const b = await request.json().catch(() => ({}));
     const x = (b.plan_x == null) ? null : Number(b.plan_x), y = (b.plan_y == null) ? null : Number(b.plan_y);
-    await env.DB.prepare(`UPDATE devis SET plan_x=?, plan_y=? WHERE id=?`).bind(x, y, Number(dvPos[1])).run();
+    const lvl = (b.level_id == null) ? null : Number(b.level_id);
+    await env.DB.prepare(`UPDATE devis SET level_id=?, plan_x=?, plan_y=? WHERE id=?`).bind(lvl, x, y, Number(dvPos[1])).run();
+    return json({ ok: true });
+  }
+
+  /* ----- Lieu de vie : étages du plan ----- */
+  if (path === '/api/admin/levels' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT id, name, image_key, sort FROM plan_levels ORDER BY sort, id`).all();
+    return json(results || []);
+  }
+  if (path === '/api/admin/levels' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 80);
+    if (!name) return json({ error: "Nom de l'étage requis." }, 400);
+    const mx = await env.DB.prepare(`SELECT COALESCE(MAX(sort),-1)+1 AS s FROM plan_levels`).first();
+    const r = await env.DB.prepare(`INSERT INTO plan_levels (name, sort) VALUES (?,?)`).bind(name, mx.s).run();
+    return json({ ok: true, id: r.meta.last_row_id });
+  }
+  const lvMatch = path.match(/^\/api\/admin\/levels\/(\d+)$/);
+  if (lvMatch && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 80);
+    await env.DB.prepare(`UPDATE plan_levels SET name=COALESCE(?,name), image_key=COALESCE(?,image_key) WHERE id=?`)
+      .bind(name || null, b.image_key === undefined ? null : (clean(b.image_key, 200) || null), Number(lvMatch[1])).run();
+    return json({ ok: true });
+  }
+  if (lvMatch && method === 'DELETE') {
+    const id = Number(lvMatch[1]);
+    await env.DB.prepare(`UPDATE devis SET level_id=NULL, plan_x=NULL, plan_y=NULL WHERE level_id=?`).bind(id).run();
+    await env.DB.prepare(`DELETE FROM plan_levels WHERE id=?`).bind(id).run();
     return json({ ok: true });
   }
 

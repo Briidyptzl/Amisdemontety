@@ -206,6 +206,12 @@
 .plan-pin.pin-refuse { color: var(--brique-600); }
 .plan-pin.pin-attente { color: var(--ocre-500); }
 .plan-pin:hover svg { transform: scale(1.15); }
+.lvl-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; border-bottom: 1px solid var(--color-border); padding-bottom: 12px; }
+.lvl-tab { border: 1.5px solid var(--color-border-strong); background: var(--color-surface); cursor: pointer; font-family: var(--font-body); font-weight: 600; font-size: 0.9rem; color: var(--encre-soft); padding: 8px 14px; border-radius: var(--radius-pill); }
+.lvl-tab.is-active { background: var(--ardoise-700); color: var(--creme-50); border-color: transparent; }
+.lvl-count { background: var(--ocre-500); color: var(--ardoise-900); font-size: 0.72rem; padding: 0 6px; border-radius: var(--radius-pill); margin-left: 2px; }
+.lvl-tab.is-active .lvl-count { background: var(--creme-50); color: var(--brique-600); }
+.lvl-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 
 @media (max-width: 900px) {
   .acc-two { grid-template-columns: 1fr; }

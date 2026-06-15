@@ -174,7 +174,15 @@ CREATE TABLE IF NOT EXISTS devis (
   created_at   TEXT DEFAULT (datetime('now')),
   decided_at   TEXT
 );
--- L'image du plan est stockée dans settings (clé 'plan_lieu_key').
+-- Étages du plan (chacun avec sa propre image) ; un devis peut être placé sur un étage.
+CREATE TABLE IF NOT EXISTS plan_levels (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT NOT NULL,
+  image_key  TEXT,                          -- image du plan de cet étage (KV MEDIA)
+  sort       INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+-- devis.level_id référence l'étage où la punaise est posée (plan_x/plan_y en %).
 
 -- Modèles d'e-mails et d'attestation fiscale (éditables dans l'admin)
 CREATE TABLE IF NOT EXISTS templates (
