@@ -93,6 +93,14 @@ async function init() {
     showLogin();
   });
 
+  $('#forgot-link').addEventListener('click', async (e) => {
+    e.preventDefault();
+    const email = prompt('Entrez votre e-mail d\'administrateur. Vous recevrez un lien pour réinitialiser votre mot de passe.');
+    if (!email) return;
+    try { await fetch('/api/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim() }) }); } catch (_) {}
+    alert('Si cette adresse correspond à un compte administrateur, un e-mail de réinitialisation vient d\'être envoyé.');
+  });
+
   $('#dash-nav').addEventListener('click', e => {
     const b = e.target.closest('.dash-nav__item'); if (!b) return;
     switchView(b.dataset.view);
@@ -991,7 +999,7 @@ async function renderAdmins() {
     </div>
     <p class="hint" style="margin-top:14px">Chaque administrateur peut se connecter avec son e-mail et son mot de passe, et changer son propre mot de passe dans Réglages.</p>`;
   $('#add-admin').addEventListener('click', () => adminModal());
-  $$('[data-apw]', c).forEach(b => b.addEventListener('click', () => adminPwdModal(b.dataset.apw, b.dataset.name)));
+  $$('[data-apw]', c).forEach(b => b.addEventListener('click', () => resetAdmin(b.dataset.apw, b.dataset.name)));
   $$('[data-adel]', c).forEach(b => b.addEventListener('click', () => delAdmin(b.dataset.adel)));
   icons();
 }
@@ -1000,9 +1008,14 @@ function adminRow(a) {
     <td><div class="cell-title">${esc(a.name)}</div>${a.me ? '<span class="badge badge--ardoise">Vous</span>' : ''}</td>
     <td class="muted">${esc(a.email)}</td>
     <td class="col-actions">
-      <button class="icon-btn" data-apw="${a.id}" data-name="${esc(a.name)}" title="Réinitialiser le mot de passe"><span data-lucide="key-round"></span></button>
+      <button class="icon-btn" data-apw="${a.id}" data-name="${esc(a.name)}" title="Envoyer un lien de réinitialisation"><span data-lucide="mail"></span></button>
       ${a.me ? '' : `<button class="icon-btn danger" data-adel="${a.id}" title="Supprimer"><span data-lucide="trash-2"></span></button>`}
     </td></tr>`;
+}
+async function resetAdmin(id, name) {
+  if (!confirm(`Envoyer un lien de réinitialisation de mot de passe à ${name} ?\n\nIl recevra un e-mail et choisira lui-même son mot de passe — vous ne le verrez pas.`)) return;
+  try { await api('/admin/admins/' + id + '/reset', { method: 'POST', body: '{}' }); toast('Lien de réinitialisation envoyé par e-mail.'); }
+  catch (ex) { toast(ex.message, true); }
 }
 function adminModal() {
   openModal(`
@@ -1010,10 +1023,10 @@ function adminModal() {
     <form id="admin-form">
       <div class="field"><label>Nom</label><input name="name" required /></div>
       <div class="field"><label>E-mail (servira d'identifiant)</label><input name="email" type="email" required /></div>
-      <div class="field"><label>Mot de passe (8 caractères min.)</label><input name="password" type="text" required /></div>
+      <p class="hint">Un e-mail d'invitation sera envoyé à cette adresse. La personne choisira elle-même son mot de passe — vous ne le verrez jamais.</p>
       <div class="modal-actions">
         <button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button>
-        <button type="submit" class="btn btn--accent btn--md">Créer le compte</button>
+        <button type="submit" class="btn btn--accent btn--md">Inviter</button>
       </div>
     </form>`);
   $('#modal-cancel').addEventListener('click', closeModal);
@@ -1021,30 +1034,13 @@ function adminModal() {
     e.preventDefault();
     const f = e.target;
     try {
-      await api('/admin/admins', { method: 'POST', body: JSON.stringify({
-        name: f.name.value.trim(), email: f.email.value.trim(), password: f.password.value }) });
-      closeModal(); alert('Compte créé.\n\nIdentifiant : ' + f.email.value.trim() + '\nMot de passe : ' + f.password.value + '\n\nTransmettez ces accès.');
+      const r = await api('/admin/admins', { method: 'POST', body: JSON.stringify({
+        name: f.name.value.trim(), email: f.email.value.trim() }) });
+      closeModal();
+      if (r.emailed) toast("Invitation envoyée par e-mail.");
+      else alert("Compte créé, mais l'e-mail d'invitation n'a pas pu être envoyé :\n" + (r.warning || '') + "\n\nConfigurez l'envoi d'e-mails dans Réglages, puis utilisez « Renvoyer le lien ».");
       renderAdmins();
     } catch (ex) { toast(ex.message, true); }
-  });
-}
-function adminPwdModal(id, name) {
-  openModal(`
-    <h3>Mot de passe — ${esc(name)}</h3>
-    <form id="apwd-form">
-      <div class="field"><label>Nouveau mot de passe (8 caractères min.)</label><input name="password" type="text" required /></div>
-      <div class="modal-actions">
-        <button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button>
-        <button type="submit" class="btn btn--accent btn--md">Définir</button>
-      </div>
-    </form>`);
-  $('#modal-cancel').addEventListener('click', closeModal);
-  $('#apwd-form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const pwd = e.target.password.value;
-    try { await api('/admin/admins/' + id + '/password', { method: 'POST', body: JSON.stringify({ password: pwd }) });
-      closeModal(); alert('Nouveau mot de passe défini : ' + pwd); }
-    catch (ex) { toast(ex.message, true); }
   });
 }
 async function delAdmin(id) {
@@ -1071,6 +1067,17 @@ async function renderSettings() {
         </form>
       </div>
     </div>
+    <div class="panel" style="margin-bottom:24px">
+      <div class="panel-head"><h3>Envoi d'e-mails (invitations & réinitialisations)</h3></div>
+      <div class="panel-body" style="padding:22px">
+        <p class="muted" style="margin:0 0 16px">Nécessaire pour les liens d'invitation et de réinitialisation des administrateurs. ${s.resend_configured ? '<strong style="color:var(--olive-700)">✓ Configuré.</strong>' : '<strong style="color:var(--brique-600)">Non configuré.</strong>'}</p>
+        <form id="mail-form" style="max-width:520px">
+          <div class="field"><label>Adresse d'expéditeur</label><input name="mail_from" value="${esc(s.mail_from || '')}" placeholder="Les Amis de Montety &lt;noreply@lesamisdemontety.com&gt;" /></div>
+          <div class="field"><label>Clé d'API d'envoi (Resend)</label><input name="resend_api_key" type="password" placeholder="${s.resend_configured ? '•••••••• (laisser vide pour conserver)' : 're_...'}" /><div class="hint">Collez votre clé Resend. Elle reste secrète, jamais réaffichée.</div></div>
+          <button class="btn btn--accent btn--md" type="submit">Enregistrer</button>
+        </form>
+      </div>
+    </div>
     <div class="panel">
       <div class="panel-head"><h3>Changer mon mot de passe</h3></div>
       <div class="panel-body" style="padding:22px">
@@ -1081,6 +1088,14 @@ async function renderSettings() {
         </form>
       </div>
     </div>`;
+  $('#mail-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    const payload = { mail_from: f.mail_from.value.trim() };
+    if (f.resend_api_key.value.trim()) payload.resend_api_key = f.resend_api_key.value.trim();
+    try { await api('/admin/settings', { method: 'PUT', body: JSON.stringify(payload) }); toast('Configuration e-mail enregistrée'); renderSettings(); }
+    catch (ex) { toast(ex.message, true); }
+  });
   $('#settings-form').addEventListener('submit', async e => {
     e.preventDefault();
     const f = e.target;

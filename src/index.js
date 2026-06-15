@@ -311,6 +311,35 @@ async function handleApi(request, env, url) {
     return handleMerchant(request, env, url, method, ms);
   }
 
+  /* ===================== Mot de passe (jetons publics) ===================== */
+  if (path === '/api/auth/forgot' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const email = clean(b.email, 254).toLowerCase();
+    const admin = await env.DB.prepare(`SELECT id, email, name FROM admins WHERE lower(email)=?`).bind(email).first();
+    if (admin) { try { await sendSetPasswordMail(env, admin, 'reset', url.origin); } catch (_) {} }
+    return json({ ok: true });
+  }
+  if (path === '/api/auth/validate-token' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const t = await env.DB.prepare(
+      `SELECT t.used, t.expires_at, t.kind, a.name FROM auth_tokens t JOIN admins a ON a.id=t.admin_id WHERE t.token_hash=?`)
+      .bind(await sha256Hex(clean(b.token, 200))).first();
+    if (!t || t.used || new Date(t.expires_at) < new Date()) return json({ valid: false });
+    return json({ valid: true, name: t.name, kind: t.kind });
+  }
+  if (path === '/api/auth/set-password' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const password = clean(b.password, 200);
+    if (password.length < 8) return json({ error: 'Mot de passe : 8 caractères minimum.' }, 400);
+    const t = await env.DB.prepare(`SELECT * FROM auth_tokens WHERE token_hash=?`).bind(await sha256Hex(clean(b.token, 200))).first();
+    if (!t || t.used || new Date(t.expires_at) < new Date()) return json({ error: 'Lien invalide ou expiré.' }, 400);
+    const { hash, salt, iter } = await hashPassword(password);
+    await env.DB.prepare(`UPDATE admins SET pass_hash=?, pass_salt=?, pass_iter=? WHERE id=?`).bind(hash, salt, iter, t.admin_id).run();
+    await env.DB.prepare(`UPDATE auth_tokens SET used=1 WHERE id=?`).bind(t.id).run();
+    await env.DB.prepare(`DELETE FROM auth_tokens WHERE admin_id=? AND used=0`).bind(t.admin_id).run();
+    return json({ ok: true });
+  }
+
   /* ===================== Authentification ===================== */
 
   if (path === '/api/admin/login' && method === 'POST') {
@@ -407,14 +436,16 @@ async function handleAdmin(request, env, url, method, session) {
 
   // Paramètres (liens HelloAsso, e-mail de contact)
   if (path === '/api/admin/settings' && method === 'GET') {
-    const rows = await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE 'helloasso_%' OR key='contact_email'`).all();
+    const rows = await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE 'helloasso_%' OR key IN ('contact_email','mail_from','resend_api_key')`).all();
     const cfg = {};
     (rows.results || []).forEach(r => { cfg[r.key] = r.value; });
+    cfg.resend_configured = !!cfg.resend_api_key;
+    delete cfg.resend_api_key;
     return json(cfg);
   }
   if (path === '/api/admin/settings' && method === 'PUT') {
     const b = await request.json().catch(() => ({}));
-    const allowed = ['helloasso_membership_url', 'helloasso_donation_url', 'contact_email'];
+    const allowed = ['helloasso_membership_url', 'helloasso_donation_url', 'contact_email', 'mail_from', 'resend_api_key'];
     for (const k of allowed) {
       if (k in b) {
         await env.DB.prepare(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?,?,datetime('now'))`)
@@ -632,15 +663,20 @@ async function handleAdmin(request, env, url, method, session) {
   }
   if (path === '/api/admin/admins' && method === 'POST') {
     const b = await request.json().catch(() => ({}));
-    const email = clean(b.email, 254).toLowerCase(), name = clean(b.name, 120), password = clean(b.password, 200);
+    const email = clean(b.email, 254).toLowerCase(), name = clean(b.name, 120);
     if (!isValidEmail(email) || !name) return json({ error: 'E-mail valide et nom requis.' }, 400);
-    if (password.length < 8) return json({ error: 'Mot de passe : 8 caractères minimum.' }, 400);
     const exists = await env.DB.prepare(`SELECT id FROM admins WHERE lower(email) = ?`).bind(email).first();
     if (exists) return json({ error: 'Un administrateur avec cet e-mail existe déjà.' }, 409);
-    const { hash, salt, iter } = await hashPassword(password);
-    await env.DB.prepare(`INSERT INTO admins (email, name, pass_hash, pass_salt, pass_iter) VALUES (?,?,?,?,?)`)
+    // mot de passe aléatoire inutilisable : le compte s'active uniquement par le lien d'invitation
+    const { hash, salt, iter } = await hashPassword(bytesToHex(crypto.getRandomValues(new Uint8Array(24))));
+    const r = await env.DB.prepare(`INSERT INTO admins (email, name, pass_hash, pass_salt, pass_iter) VALUES (?,?,?,?,?)`)
       .bind(email, name, hash, salt, iter).run();
-    return json({ ok: true });
+    try {
+      await sendSetPasswordMail(env, { id: r.meta.last_row_id, email, name }, 'invite', url.origin);
+      return json({ ok: true, emailed: true });
+    } catch (e) {
+      return json({ ok: true, emailed: false, warning: String(e.message || e) });
+    }
   }
   const adMatch = path.match(/^\/api\/admin\/admins\/(\d+)$/);
   if (adMatch && method === 'PUT') {
@@ -660,15 +696,13 @@ async function handleAdmin(request, env, url, method, session) {
     await env.DB.prepare(`DELETE FROM admins WHERE id=?`).bind(Number(adMatch[1])).run();
     return json({ ok: true });
   }
-  const adPw = path.match(/^\/api\/admin\/admins\/(\d+)\/password$/);
-  if (adPw && method === 'POST') {
-    const b = await request.json().catch(() => ({}));
-    const password = clean(b.password, 200);
-    if (password.length < 8) return json({ error: 'Mot de passe : 8 caractères minimum.' }, 400);
-    const { hash, salt, iter } = await hashPassword(password);
-    await env.DB.prepare(`UPDATE admins SET pass_hash=?, pass_salt=?, pass_iter=? WHERE id=?`)
-      .bind(hash, salt, iter, Number(adPw[1])).run();
-    return json({ ok: true });
+  // Réinitialisation : envoie un lien à l'administrateur concerné (personne ne choisit son mot de passe)
+  const adReset = path.match(/^\/api\/admin\/admins\/(\d+)\/reset$/);
+  if (adReset && method === 'POST') {
+    const a = await env.DB.prepare(`SELECT id, email, name FROM admins WHERE id=?`).bind(Number(adReset[1])).first();
+    if (!a) return json({ error: 'Compte introuvable.' }, 404);
+    try { await sendSetPasswordMail(env, a, 'reset', url.origin); return json({ ok: true, emailed: true }); }
+    catch (e) { return json({ error: String(e.message || e) }, 502); }
   }
 
   /* ----- Comptabilité : plan de comptes ----- */
@@ -983,3 +1017,53 @@ async function syncDonationEntry(env, did) {
   });
 }
 function csvCell(v) { const s = String(v == null ? '' : v); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+
+/* ----------------------------- e-mails & jetons de mot de passe ----------------------------- */
+async function sha256Hex(s) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return bytesToHex(new Uint8Array(buf));
+}
+async function getSetting(env, key) {
+  const r = await env.DB.prepare(`SELECT value FROM settings WHERE key=?`).bind(key).first();
+  return r ? r.value : null;
+}
+function escapeHtmlMail(s) { return String(s || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+async function sendMail(env, to, subject, html) {
+  const apiKey = await getSetting(env, 'resend_api_key');
+  if (!apiKey) throw new Error("L'envoi d'e-mails n'est pas encore configuré.");
+  const from = (await getSetting(env, 'mail_from')) || 'Les Amis de Montety <noreply@lesamisdemontety.com>';
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from, to, subject, html }),
+  });
+  if (!res.ok) throw new Error('Envoi e-mail refusé : ' + (await res.text()).slice(0, 200));
+  return true;
+}
+async function createAuthToken(env, adminId, kind, hours) {
+  const raw = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+  const hash = await sha256Hex(raw);
+  const exp = new Date(Date.now() + hours * 3600 * 1000).toISOString();
+  await env.DB.prepare(`DELETE FROM auth_tokens WHERE admin_id=? AND kind=? AND used=0`).bind(adminId, kind).run();
+  await env.DB.prepare(`INSERT INTO auth_tokens (admin_id, token_hash, kind, expires_at) VALUES (?,?,?,?)`)
+    .bind(adminId, hash, kind, exp).run();
+  return raw;
+}
+async function sendSetPasswordMail(env, admin, kind, origin) {
+  const raw = await createAuthToken(env, admin.id, kind, kind === 'invite' ? 72 : 2);
+  const link = `${origin}/definir-mot-de-passe.html?token=${raw}`;
+  const invite = kind === 'invite';
+  const intro = invite
+    ? "Un compte administrateur vient d'être créé pour vous sur le site des Amis de Montety."
+    : 'Une réinitialisation de votre mot de passe administrateur a été demandée.';
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#233640;max-width:520px">
+    <h2 style="color:#29414E">Les Amis de Montety</h2>
+    <p>Bonjour ${escapeHtmlMail(admin.name)},</p>
+    <p>${intro}</p>
+    <p>Cliquez sur le bouton ci-dessous pour ${invite ? 'initialiser' : 'réinitialiser'} votre mot de passe&nbsp;:</p>
+    <p><a href="${link}" style="display:inline-block;background:#CE6446;color:#fff;padding:12px 24px;border-radius:999px;text-decoration:none;font-weight:bold">Définir mon mot de passe</a></p>
+    <p style="color:#4E5C66;font-size:13px">Ou copiez ce lien&nbsp;: ${link}</p>
+    <p style="color:#4E5C66;font-size:13px">Ce lien expire dans ${invite ? '72 heures' : '2 heures'}. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>
+  </div>`;
+  await sendMail(env, admin.email, invite ? 'Initialisez votre compte administrateur' : 'Réinitialisation de votre mot de passe', html);
+}

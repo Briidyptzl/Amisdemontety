@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Définir mon mot de passe — Les Amis de Montety</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" href="assets/logo-montety.png" />
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/site.css" />
+<link rel="stylesheet" href="css/admin.css" />
+</head>
+<body class="admin-body">
+<div class="login-screen">
+  <div class="login-card card">
+    <div class="medallion" style="width:88px;height:88px;margin:0 auto 18px">
+      <img src="assets/logo-montety.png" alt="" style="width:58px" />
+    </div>
+    <h1 id="title" style="font-size:1.6rem; text-align:center; margin:0 0 4px">Définir mon mot de passe</h1>
+    <p id="subtitle" style="text-align:center; color:var(--color-text-muted); margin:0 0 24px; font-size:0.95rem">Vérification du lien…</p>
+
+    <div id="invalid" hidden>
+      <div class="login-error">Ce lien est invalide ou a expiré. Demandez un nouveau lien depuis la page de connexion.</div>
+      <p style="text-align:center; margin-top:16px"><a href="admin.html">← Aller à la connexion</a></p>
+    </div>
+
+    <form id="form" hidden>
+      <div class="field">
+        <label for="pwd">Nouveau mot de passe (8 caractères min.)</label>
+        <input id="pwd" type="password" autocomplete="new-password" required minlength="8" />
+      </div>
+      <div class="field" style="margin-bottom:20px">
+        <label for="pwd2">Confirmer le mot de passe</label>
+        <input id="pwd2" type="password" autocomplete="new-password" required />
+      </div>
+      <div id="error" class="login-error" hidden></div>
+      <button class="btn btn--accent btn--lg btn--full" type="submit" id="submit">Enregistrer mon mot de passe</button>
+    </form>
+
+    <div id="done" hidden style="text-align:center">
+      <div class="form-success" style="padding:8px">
+        <div class="pop"><span data-lucide="check-circle-2"></span></div>
+        <h3 style="font-size:1.4rem; margin:0 0 8px">Mot de passe enregistré</h3>
+        <p style="color:var(--color-text-muted)">Vous pouvez maintenant vous connecter à l'espace administrateur.</p>
+        <a class="btn btn--accent btn--md" href="admin.html" style="margin-top:8px">Se connecter</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="js/definir-mot-de-passe.js"></script>
+</body>
+</html>

@@ -159,6 +159,17 @@ CREATE TABLE IF NOT EXISTS journal_lines (
   label      TEXT
 );
 
+-- Jetons d'invitation / réinitialisation de mot de passe (lien par e-mail)
+CREATE TABLE IF NOT EXISTS auth_tokens (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  admin_id   INTEGER NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,          -- sha256 du jeton (le jeton brut n'est que dans l'e-mail)
+  kind       TEXT NOT NULL,                 -- invite / reset
+  expires_at TEXT NOT NULL,
+  used       INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_lines_entry      ON journal_lines (entry_id);
 CREATE INDEX IF NOT EXISTS idx_lines_account    ON journal_lines (account_id);
 CREATE INDEX IF NOT EXISTS idx_entries_date     ON journal_entries (edate);
