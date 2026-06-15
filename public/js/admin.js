@@ -124,12 +124,12 @@ async function init() {
 const VIEW_TITLES = {
   dashboard: 'Tableau de bord', events: 'Agenda', memberships: 'Adhésions',
   messages: 'Messages', donations: 'Dons', accounting: 'Comptabilité', listings: 'Entraide',
-  merchants: 'Commerçants', admins: 'Administrateurs', settings: 'Réglages',
+  merchants: 'Commerçants', devis: 'Lieu de vie', admins: 'Administrateurs', settings: 'Réglages',
 };
 function switchView(view) {
   $$('.dash-nav__item').forEach(b => b.classList.toggle('is-active', b.dataset.view === view));
   $('#view-title').textContent = VIEW_TITLES[view] || '';
-  const render = { dashboard: renderDashboard, events: renderEvents, memberships: renderMemberships, messages: renderMessages, donations: renderDonations, accounting: renderAccounting, listings: renderAdminListings, merchants: renderAdminMerchants, admins: renderAdmins, settings: renderSettings }[view];
+  const render = { dashboard: renderDashboard, events: renderEvents, memberships: renderMemberships, messages: renderMessages, donations: renderDonations, accounting: renderAccounting, listings: renderAdminListings, merchants: renderAdminMerchants, devis: renderDevis, admins: renderAdmins, settings: renderSettings }[view];
   if (render) render();
 }
 
@@ -978,6 +978,111 @@ function accountModal() {
     } catch (ex) { toast(ex.message, true); } });
 }
 async function delAccount(id) { if (!confirm('Supprimer ce compte ?')) return; try { await api('/admin/accounting/accounts/' + id, { method: 'DELETE' }); ACC_ACCOUNTS = await api('/admin/accounting/accounts'); toast('Compte supprimé'); drawAccounting(); } catch (ex) { toast(ex.message, true); } }
+
+/* ----------------------------- Lieu de vie (devis) ----------------------------- */
+let DEVIS_LIST = [], DEVIS_PLAN = '', PLACING = null;
+function devisStatusBadge(s) { return s === 'valide' ? '<span class="badge badge--olive">Validé</span>' : s === 'refuse' ? '<span class="badge badge--brique">Refusé</span>' : '<span class="badge badge--ocre">À valider</span>'; }
+async function renderDevis() {
+  const c = $('#dash-content'); c.innerHTML = '<p class="muted">Chargement…</p>';
+  const [list, settings] = await Promise.all([api('/admin/devis'), api('/admin/settings')]);
+  DEVIS_LIST = list; DEVIS_PLAN = settings.plan_lieu_key || ''; PLACING = null;
+  drawDevis();
+}
+function drawDevis() {
+  const c = $('#dash-content');
+  const aValider = DEVIS_LIST.filter(d => d.status === 'a_valider').length;
+  const valides = DEVIS_LIST.filter(d => d.status === 'valide');
+  const totalValide = valides.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+  const badge = $('#badge-devis'); if (badge) { badge.textContent = aValider; badge.hidden = !aValider; }
+  c.innerHTML = `
+    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card card"><div class="stat-ic"><span data-lucide="file-clock"></span></div><div class="stat-val">${aValider}</div><div class="stat-lbl">Devis à valider</div></div>
+      <div class="stat-card card"><div class="stat-ic"><span data-lucide="check-circle-2"></span></div><div class="stat-val">${valides.length}</div><div class="stat-lbl">Devis validés</div></div>
+      <div class="stat-card card"><div class="stat-ic"><span data-lucide="hammer"></span></div><div class="stat-val">${eur(totalValide)}</div><div class="stat-lbl">Montant validé</div></div>
+    </div>
+    <div class="panel" style="margin-bottom:24px">
+      <div class="panel-head"><h3>Devis (${DEVIS_LIST.length})</h3><button class="btn btn--accent btn--sm" id="dev-add"><span data-lucide="plus"></span> Ajouter un devis</button></div>
+      <div class="panel-body">${DEVIS_LIST.length ? `<table class="table"><thead><tr><th>Devis</th><th>Lot</th><th>Montant</th><th>Statut</th><th class="col-actions">Actions</th></tr></thead><tbody>${DEVIS_LIST.map(devisRow).join('')}</tbody></table>` : '<div class="empty-state">Aucun devis. Cliquez sur « Ajouter un devis ».</div>'}</div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Plan du lieu de vie</h3>
+        <span style="display:flex;gap:8px"><input type="file" id="plan-input" accept="image/*" hidden><button class="btn btn--secondary btn--sm" id="plan-btn"><span data-lucide="image-up"></span> ${DEVIS_PLAN ? 'Changer le plan' : 'Ajouter un plan'}</button></span></div>
+      <div class="panel-body" style="padding:22px">
+        ${PLACING ? `<p class="hint" style="color:var(--brique-600)">📍 Cliquez sur le plan pour placer « ${esc((DEVIS_LIST.find(d => d.id == PLACING) || {}).title || '')} » — ou <a href="#" id="cancel-place">annuler</a>.</p>` : '<p class="muted" style="margin-top:0">Pour placer un devis : bouton 📍 dans la liste, puis cliquez à l\'endroit voulu sur le plan. Cliquez une punaise pour la retirer.</p>'}
+        ${DEVIS_PLAN ? `<div class="plan-wrap ${PLACING ? 'placing' : ''}" id="plan-wrap"><img src="/img/${esc(DEVIS_PLAN)}" alt="Plan du lieu de vie">${DEVIS_LIST.filter(d => d.plan_x != null && d.plan_y != null).map(planPin).join('')}</div>` : '<div class="empty-state">Aucun plan chargé. Cliquez sur « Ajouter un plan » (image PNG/JPG).</div>'}
+      </div>
+    </div>`;
+  $('#dev-add').addEventListener('click', () => devisModal());
+  $$('[data-dvalid]', c).forEach(b => b.addEventListener('click', () => setDevis(b.dataset.dvalid, 'valide')));
+  $$('[data-drefus]', c).forEach(b => b.addEventListener('click', () => setDevis(b.dataset.drefus, 'refuse')));
+  $$('[data-dedit]', c).forEach(b => b.addEventListener('click', () => devisModal(DEVIS_LIST.find(d => d.id == b.dataset.dedit))));
+  $$('[data-ddel]', c).forEach(b => b.addEventListener('click', () => delDevis(b.dataset.ddel)));
+  $$('[data-dplace]', c).forEach(b => b.addEventListener('click', () => { PLACING = b.dataset.dplace; drawDevis(); }));
+  const cp = $('#cancel-place'); if (cp) cp.addEventListener('click', e => { e.preventDefault(); PLACING = null; drawDevis(); });
+  const pi = $('#plan-input'), pb = $('#plan-btn');
+  pb.addEventListener('click', () => pi.click());
+  pi.addEventListener('change', async () => {
+    if (!pi.files[0]) return; pb.disabled = true; pb.textContent = 'Envoi…';
+    try { const key = await adminUpload(pi.files[0]); await api('/admin/settings', { method: 'PUT', body: JSON.stringify({ plan_lieu_key: key }) }); DEVIS_PLAN = key; drawDevis(); }
+    catch (ex) { alert(ex.message); pb.disabled = false; pb.textContent = 'Ajouter un plan'; }
+  });
+  const wrap = $('#plan-wrap');
+  if (wrap && PLACING) wrap.addEventListener('click', async e => {
+    if (e.target.closest('.plan-pin')) return;
+    const r = wrap.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100, y = ((e.clientY - r.top) / r.height) * 100;
+    try { await api('/admin/devis/' + PLACING + '/position', { method: 'POST', body: JSON.stringify({ plan_x: x, plan_y: y }) });
+      const d = DEVIS_LIST.find(dd => dd.id == PLACING); if (d) { d.plan_x = x; d.plan_y = y; } PLACING = null; drawDevis(); }
+    catch (ex) { alert(ex.message); }
+  });
+  $$('.plan-pin', c).forEach(p => p.addEventListener('click', e => {
+    e.stopPropagation(); const d = DEVIS_LIST.find(dd => dd.id == p.dataset.pin);
+    if (d && confirm(`${d.title} — ${d.amount != null ? eur(d.amount) : ''}\n\nRetirer cette punaise du plan ?`)) removePin(d.id);
+  }));
+  icons();
+}
+function devisRow(d) {
+  return `<tr>
+    <td><div class="cell-title">${esc(d.title)}</div><div class="cell-sub">${esc(d.supplier || '')}</div>${d.document_key ? `<a href="/img/${esc(d.document_key)}" target="_blank" class="cell-sub" style="color:var(--ardoise-700)">📎 Document</a>` : ''}</td>
+    <td class="muted">${esc(d.lot || '—')}</td>
+    <td class="cell-title">${d.amount != null ? eur(d.amount) : '—'}</td>
+    <td>${devisStatusBadge(d.status)}${d.plan_x != null ? ' <span class="badge badge--ardoise">📍</span>' : ''}</td>
+    <td class="col-actions">
+      ${d.status !== 'valide' ? `<button class="icon-btn ok" data-dvalid="${d.id}" title="Valider"><span data-lucide="check"></span></button>` : ''}
+      ${d.status !== 'refuse' ? `<button class="icon-btn" data-drefus="${d.id}" title="Refuser"><span data-lucide="x"></span></button>` : ''}
+      <button class="icon-btn" data-dplace="${d.id}" title="Placer sur le plan"><span data-lucide="map-pin"></span></button>
+      <button class="icon-btn" data-dedit="${d.id}" title="Modifier"><span data-lucide="pencil"></span></button>
+      <button class="icon-btn danger" data-ddel="${d.id}" title="Supprimer"><span data-lucide="trash-2"></span></button>
+    </td></tr>`;
+}
+function planPin(d) {
+  const cls = d.status === 'valide' ? 'pin-valide' : d.status === 'refuse' ? 'pin-refuse' : 'pin-attente';
+  return `<button class="plan-pin ${cls}" data-pin="${d.id}" style="left:${d.plan_x}%;top:${d.plan_y}%" title="${esc(d.title)}"><span data-lucide="map-pin"></span></button>`;
+}
+async function setDevis(id, status) { try { await api('/admin/devis/' + id + '/status', { method: 'PATCH', body: JSON.stringify({ status }) }); DEVIS_LIST = await api('/admin/devis'); toast('Devis mis à jour'); drawDevis(); } catch (ex) { toast(ex.message, true); } }
+async function removePin(id) { try { await api('/admin/devis/' + id + '/position', { method: 'POST', body: JSON.stringify({ plan_x: null, plan_y: null }) }); const d = DEVIS_LIST.find(dd => dd.id == id); if (d) { d.plan_x = null; d.plan_y = null; } drawDevis(); } catch (ex) { toast(ex.message, true); } }
+async function delDevis(id) { if (!confirm('Supprimer ce devis ?')) return; try { await api('/admin/devis/' + id, { method: 'DELETE' }); DEVIS_LIST = await api('/admin/devis'); toast('Devis supprimé'); drawDevis(); } catch (ex) { toast(ex.message, true); } }
+function devisModal(d) {
+  const e = d || {};
+  openModal(`<h3>${d ? 'Modifier' : 'Ajouter'} un devis</h3><form id="devis-form">
+    <div class="field"><label>Intitulé des travaux</label><input name="title" value="${esc(e.title || '')}" required></div>
+    <div class="form-grid2"><div class="field"><label>Fournisseur</label><input name="supplier" value="${esc(e.supplier || '')}"></div><div class="field"><label>Lot / poste</label><input name="lot" value="${esc(e.lot || '')}" placeholder="Toiture, Électricité…"></div></div>
+    <div class="field"><label>Montant (€)</label><input name="amount" type="number" step="0.01" min="0" value="${e.amount != null ? esc(e.amount) : ''}"></div>
+    <div class="field"><label>Description</label><textarea name="description">${esc(e.description || '')}</textarea></div>
+    <div class="field"><label>Document (PDF ou image, facultatif)</label><input type="file" name="document" accept="image/*,application/pdf">${e.document_key ? '<div class="hint">Un document est déjà attaché (laisser vide pour le conserver).</div>' : ''}</div>
+    <div class="modal-actions"><button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button><button type="submit" class="btn btn--accent btn--md">${d ? 'Enregistrer' : 'Ajouter'}</button></div></form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#devis-form').addEventListener('submit', async ev => {
+    ev.preventDefault(); const f = ev.target;
+    try {
+      const payload = { title: f.title.value.trim(), supplier: f.supplier.value.trim(), lot: f.lot.value.trim(), amount: f.amount.value, description: f.description.value.trim() };
+      if (f.document.files[0]) payload.document_key = await adminUpload(f.document.files[0]);
+      if (d) await api('/admin/devis/' + d.id, { method: 'PUT', body: JSON.stringify(payload) });
+      else await api('/admin/devis', { method: 'POST', body: JSON.stringify(payload) });
+      closeModal(); toast('Devis enregistré'); DEVIS_LIST = await api('/admin/devis'); drawDevis();
+    } catch (ex) { toast(ex.message, true); }
+  });
+}
 
 /* ----------------------------- Administrateurs ----------------------------- */
 async function renderAdmins() {

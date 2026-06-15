@@ -163,11 +163,11 @@ async function handleUpload(request, env, prefix) {
   const file = form && form.get('file');
   if (!file || typeof file === 'string') return json({ error: 'Aucun fichier reçu.' }, 400);
   const type = file.type || '';
-  if (!/^image\/(jpeg|png|webp|gif)$/.test(type))
-    return json({ error: 'Format accepté : JPEG, PNG, WebP ou GIF.' }, 400);
+  if (!/^image\/(jpeg|png|webp|gif)$/.test(type) && type !== 'application/pdf')
+    return json({ error: 'Format accepté : JPEG, PNG, WebP, GIF ou PDF.' }, 400);
   const buf = await file.arrayBuffer();
-  if (buf.byteLength > 3 * 1024 * 1024) return json({ error: 'Image trop lourde (3 Mo maximum).' }, 400);
-  const ext = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' })[type];
+  if (buf.byteLength > 8 * 1024 * 1024) return json({ error: 'Fichier trop lourd (8 Mo maximum).' }, 400);
+  const ext = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'application/pdf': 'pdf' })[type];
   const key = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   await env.MEDIA.put(key, buf, { metadata: { ct: type } });
   return json({ ok: true, key, url: '/img/' + key });
@@ -436,7 +436,7 @@ async function handleAdmin(request, env, url, method, session) {
 
   // Paramètres (liens HelloAsso, e-mail de contact)
   if (path === '/api/admin/settings' && method === 'GET') {
-    const rows = await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE 'helloasso_%' OR key IN ('contact_email','mail_from','resend_api_key')`).all();
+    const rows = await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE 'helloasso_%' OR key IN ('contact_email','mail_from','resend_api_key','plan_lieu_key')`).all();
     const cfg = {};
     (rows.results || []).forEach(r => { cfg[r.key] = r.value; });
     cfg.resend_configured = !!cfg.resend_api_key;
@@ -445,7 +445,7 @@ async function handleAdmin(request, env, url, method, session) {
   }
   if (path === '/api/admin/settings' && method === 'PUT') {
     const b = await request.json().catch(() => ({}));
-    const allowed = ['helloasso_membership_url', 'helloasso_donation_url', 'contact_email', 'mail_from', 'resend_api_key'];
+    const allowed = ['helloasso_membership_url', 'helloasso_donation_url', 'contact_email', 'mail_from', 'resend_api_key', 'plan_lieu_key'];
     for (const k of allowed) {
       if (k in b) {
         await env.DB.prepare(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?,?,datetime('now'))`)
@@ -804,6 +804,56 @@ async function handleAdmin(request, env, url, method, session) {
     (results || []).forEach(r => rows.push([r.edate, r.label, r.piece || '', r.acode, r.aname, r.debit || '', r.credit || '', r.lline || '']));
     const csv = '﻿' + rows.map(r => r.map(csvCell).join(';')).join('\r\n');
     return new Response(csv, { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="comptabilite-montety.csv"' } });
+  }
+
+  /* ----- Lieu de vie : devis ----- */
+  if (path === '/api/admin/devis' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT * FROM devis ORDER BY (status='a_valider') DESC, created_at DESC, id DESC`).all();
+    return json(results || []);
+  }
+  if (path === '/api/admin/devis' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const title = clean(b.title, 200);
+    if (!title) return json({ error: 'Le titre du devis est requis.' }, 400);
+    await env.DB.prepare(
+      `INSERT INTO devis (title, supplier, lot, amount, description, document_key) VALUES (?,?,?,?,?,?)`)
+      .bind(title, clean(b.supplier, 160) || null, clean(b.lot, 80) || null,
+        (b.amount === '' || b.amount == null) ? null : Number(b.amount),
+        clean(b.description, 2000) || null, clean(b.document_key, 200) || null).run();
+    return json({ ok: true });
+  }
+  if (path === '/api/admin/devis/upload' && method === 'POST') return handleUpload(request, env, 'devis');
+  const dvMatch = path.match(/^\/api\/admin\/devis\/(\d+)$/);
+  if (dvMatch && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    const title = clean(b.title, 200);
+    if (!title) return json({ error: 'Titre requis.' }, 400);
+    await env.DB.prepare(
+      `UPDATE devis SET title=?, supplier=?, lot=?, amount=?, description=?, document_key=COALESCE(?, document_key) WHERE id=?`)
+      .bind(title, clean(b.supplier, 160) || null, clean(b.lot, 80) || null,
+        (b.amount === '' || b.amount == null) ? null : Number(b.amount), clean(b.description, 2000) || null,
+        b.document_key === undefined ? null : (clean(b.document_key, 200) || null), Number(dvMatch[1])).run();
+    return json({ ok: true });
+  }
+  if (dvMatch && method === 'DELETE') {
+    await env.DB.prepare(`DELETE FROM devis WHERE id=?`).bind(Number(dvMatch[1])).run();
+    return json({ ok: true });
+  }
+  const dvStatus = path.match(/^\/api\/admin\/devis\/(\d+)\/status$/);
+  if (dvStatus && method === 'PATCH') {
+    const b = await request.json().catch(() => ({}));
+    const st = ['a_valider', 'valide', 'refuse'].includes(b.status) ? b.status : 'a_valider';
+    await env.DB.prepare(`UPDATE devis SET status=?, decided_at=? WHERE id=?`)
+      .bind(st, st === 'a_valider' ? null : new Date().toISOString().slice(0, 10), Number(dvStatus[1])).run();
+    return json({ ok: true });
+  }
+  const dvPos = path.match(/^\/api\/admin\/devis\/(\d+)\/position$/);
+  if (dvPos && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const x = (b.plan_x == null) ? null : Number(b.plan_x), y = (b.plan_y == null) ? null : Number(b.plan_y);
+    await env.DB.prepare(`UPDATE devis SET plan_x=?, plan_y=? WHERE id=?`).bind(x, y, Number(dvPos[1])).run();
+    return json({ ok: true });
   }
 
   return json({ error: 'Route inconnue' }, 404);

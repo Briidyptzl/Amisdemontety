@@ -196,6 +196,17 @@
 .acc-class h4 { margin: 0 0 6px; padding: 0 22px; color: var(--ardoise-700); font-family: var(--font-body); font-size: 0.82rem; letter-spacing: 0.04em; text-transform: uppercase; }
 .acc-ledsel { padding: 8px 12px; border: 1.5px solid var(--color-border-strong); border-radius: var(--radius-sm); font-family: var(--font-body); max-width: 100%; }
 
+/* ——— Lieu de vie : plan & punaises ——— */
+.plan-wrap { position: relative; display: inline-block; max-width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; line-height: 0; }
+.plan-wrap img { display: block; max-width: 100%; height: auto; }
+.plan-wrap.placing { cursor: crosshair; }
+.plan-pin { position: absolute; transform: translate(-50%, -100%); background: none; border: none; cursor: pointer; padding: 0; color: var(--ocre-500); }
+.plan-pin svg { width: 30px; height: 30px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.45)); }
+.plan-pin.pin-valide { color: var(--olive-600); }
+.plan-pin.pin-refuse { color: var(--brique-600); }
+.plan-pin.pin-attente { color: var(--ocre-500); }
+.plan-pin:hover svg { transform: scale(1.15); }
+
 @media (max-width: 900px) {
   .acc-two { grid-template-columns: 1fr; }
   .acc-line-row { grid-template-columns: 1fr 1fr 32px; }

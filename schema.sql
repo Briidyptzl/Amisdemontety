@@ -159,6 +159,23 @@ CREATE TABLE IF NOT EXISTS journal_lines (
   label      TEXT
 );
 
+-- Lieu de vie : devis de travaux (à valider/refuser, plaçables sur un plan)
+CREATE TABLE IF NOT EXISTS devis (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  title        TEXT NOT NULL,
+  supplier     TEXT,
+  lot          TEXT,
+  amount       REAL,
+  description  TEXT,
+  status       TEXT NOT NULL DEFAULT 'a_valider', -- a_valider / valide / refuse
+  document_key TEXT,                          -- PDF/image dans KV MEDIA
+  plan_x       REAL,                          -- position sur le plan (% )
+  plan_y       REAL,
+  created_at   TEXT DEFAULT (datetime('now')),
+  decided_at   TEXT
+);
+-- L'image du plan est stockée dans settings (clé 'plan_lieu_key').
+
 -- Jetons d'invitation / réinitialisation de mot de passe (lien par e-mail)
 CREATE TABLE IF NOT EXISTS auth_tokens (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
