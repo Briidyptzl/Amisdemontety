@@ -392,10 +392,11 @@ async function handleApi(request, env, url) {
     const b = await request.json().catch(() => ({}));
     const t = await env.DB.prepare(`SELECT account_type, admin_id, used, expires_at, kind FROM auth_tokens WHERE token_hash=?`)
       .bind(await sha256Hex(clean(b.token, 200))).first();
-    if (!t || t.used || new Date(t.expires_at) < new Date()) return json({ valid: false });
+    if (!t) return json({ valid: false });
+    if (t.used || new Date(t.expires_at) < new Date()) return json({ valid: false, account_type: t.account_type });
     const acc = await env.DB.prepare(`SELECT name FROM ${acctTable(t.account_type)} WHERE id=?`).bind(t.admin_id).first();
-    if (!acc) return json({ valid: false });
-    return json({ valid: true, name: acc.name, kind: t.kind });
+    if (!acc) return json({ valid: false, account_type: t.account_type });
+    return json({ valid: true, name: acc.name, kind: t.kind, account_type: t.account_type });
   }
   if (path === '/api/auth/set-password' && method === 'POST') {
     const b = await request.json().catch(() => ({}));
@@ -1569,16 +1570,23 @@ function fillTemplate(text, vars) {
   const html = escapeHtmlMail(text || '').replace(/\r?\n/g, '<br>');
   return html.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars) ? vars[k] : m);
 }
+// Remplacement {{var}} en texte brut (pour les objets d'e-mail) — sans échappement HTML
+function fillPlain(text, vars) {
+  return (text || '').replace(/\{\{(\w+)\}\}/g, (m, k) => (k in vars) ? String(vars[k]) : m);
+}
 async function sendTemplatedMail(env, to, key, vars, fallbackSubject) {
   const t = await getTemplate(env, key);
-  const subject = (t && t.subject) || fallbackSubject || 'Les Amis de Montety';
+  const subject = fillPlain((t && t.subject) || fallbackSubject || 'Les Amis de Montety', vars);
   await sendMail(env, to, subject, wrapMail(fillTemplate(t && t.body, vars)));
 }
+// Libellé du portail concerné (pour différencier admin / commerçant / gérant de bar dans les e-mails)
+const ESPACE_LABEL = { admin: 'administrateur', merchant: 'commerçant', bar: 'gérant de bar' };
 async function sendSetPasswordMail(env, accountType, account, kind, origin) {
   const raw = await createAuthToken(env, accountType, account.id, kind, kind === 'invite' ? 72 : 2);
   const link = `${origin}/definir-mot-de-passe.html?token=${raw}`;
   const button = `<a href="${link}" style="display:inline-block;background:#CE6446;color:#fff;padding:12px 24px;border-radius:999px;text-decoration:none;font-weight:bold">Définir mon mot de passe</a><br><span style="color:#4E5C66;font-size:12px">Ou copiez&nbsp;: ${link}</span>`;
+  const espace = ESPACE_LABEL[accountType] || 'membre';
   await sendTemplatedMail(env, account.email, kind === 'invite' ? 'password_invite' : 'password_reset',
-    { name: escapeHtmlMail(account.name), link: button },
-    kind === 'invite' ? 'Initialisez votre compte' : 'Réinitialisation de votre mot de passe');
+    { name: escapeHtmlMail(account.name), link: button, espace },
+    kind === 'invite' ? `Initialisez votre compte ${espace}` : `Réinitialisation de votre mot de passe ${espace}`);
 }

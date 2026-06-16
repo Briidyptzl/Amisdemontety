@@ -2,6 +2,14 @@
 
 const TOKEN = new URLSearchParams(location.search).get('token') || '';
 const $ = s => document.querySelector(s);
+let ACCOUNT_TYPE = 'admin';
+
+// Destination de connexion selon le type de compte
+function destFor(type) {
+  if (type === 'merchant') return { url: 'commercants.html#connexion', label: 'votre espace commerçant' };
+  if (type === 'bar') return { url: 'bar-admin.html', label: 'votre espace gérant de bar' };
+  return { url: 'admin.html', label: "l'espace administrateur" };
+}
 
 async function api(path, body) {
   const res = await fetch('/api' + path, {
@@ -17,13 +25,15 @@ async function init() {
   if (!TOKEN) { showInvalid(); return; }
   try {
     const r = await api('/auth/validate-token', { token: TOKEN });
-    if (!r.valid) { showInvalid(); return; }
+    if (!r.valid) { showInvalid(r.account_type); return; }
+    ACCOUNT_TYPE = r.account_type || 'admin';
     $('#subtitle').textContent = (r.kind === 'invite' ? 'Bienvenue ' : 'Bonjour ') + (r.name || '') + ' — choisissez votre mot de passe.';
     $('#form').hidden = false;
   } catch (_) { showInvalid(); }
 }
-function showInvalid() {
+function showInvalid(type) {
   $('#subtitle').textContent = '';
+  if (type) $('#invalid-link').setAttribute('href', destFor(type).url);
   $('#invalid').hidden = false;
 }
 
@@ -36,6 +46,9 @@ $('#form').addEventListener('submit', async e => {
   const btn = $('#submit'); btn.disabled = true; btn.textContent = 'Enregistrement…';
   try {
     await api('/auth/set-password', { token: TOKEN, password: p1 });
+    const d = destFor(ACCOUNT_TYPE);
+    $('#done-text').textContent = 'Vous pouvez maintenant vous connecter à ' + d.label + '.';
+    $('#done-link').setAttribute('href', d.url);
     $('#form').hidden = true; $('#title').hidden = true; $('#subtitle').hidden = true;
     $('#done').hidden = false; icons();
   } catch (ex) {

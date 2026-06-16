@@ -21,7 +21,7 @@
 
     <div id="invalid" hidden>
       <div class="login-error">Ce lien est invalide ou a expiré. Demandez un nouveau lien depuis la page de connexion.</div>
-      <p style="text-align:center; margin-top:16px"><a href="admin.html">← Aller à la connexion</a></p>
+      <p style="text-align:center; margin-top:16px"><a href="admin.html" id="invalid-link">← Aller à la connexion</a></p>
     </div>
 
     <form id="form" hidden>
@@ -41,8 +41,8 @@
       <div class="form-success" style="padding:8px">
         <div class="pop"><span data-lucide="check-circle-2"></span></div>
         <h3 style="font-size:1.4rem; margin:0 0 8px">Mot de passe enregistré</h3>
-        <p style="color:var(--color-text-muted)">Vous pouvez maintenant vous connecter à l'espace administrateur.</p>
-        <a class="btn btn--accent btn--md" href="admin.html" style="margin-top:8px">Se connecter</a>
+        <p style="color:var(--color-text-muted)" id="done-text">Vous pouvez maintenant vous connecter.</p>
+        <a class="btn btn--accent btn--md" href="admin.html" id="done-link" style="margin-top:8px">Se connecter</a>
       </div>
     </div>
   </div>

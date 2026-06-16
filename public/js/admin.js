@@ -1387,8 +1387,8 @@ async function delAdmin(id) {
 
 /* ----------------------------- Modèles ----------------------------- */
 const TPL_META = {
-  password_invite: { label: 'Invitation administrateur', ph: '{{name}}, {{link}}', email: true },
-  password_reset: { label: 'Réinitialisation du mot de passe', ph: '{{name}}, {{link}}', email: true },
+  password_invite: { label: 'Invitation (tous portails)', ph: '{{name}}, {{espace}}, {{link}}', email: true },
+  password_reset: { label: 'Réinitialisation du mot de passe (tous portails)', ph: '{{name}}, {{espace}}, {{link}}', email: true },
   membership_welcome: { label: 'Accusé de réception — adhésion', ph: '{{name}}', email: true },
   contact_ack: { label: 'Accusé de réception — contact', ph: '{{name}}', email: true },
   thank_you: { label: 'Remerciement de don', ph: '{{name}}, {{amount}}', email: true },
@@ -1397,7 +1397,7 @@ const TPL_META = {
 async function renderTemplates() {
   const c = $('#dash-content'); c.innerHTML = '<p class="muted">Chargement…</p>';
   const tpls = await api('/admin/templates');
-  c.innerHTML = `<p class="hint" style="margin-bottom:18px">Les variables entre doubles accolades (ex. <code>{{name}}</code>) sont remplacées automatiquement. <code>{{link}}</code> insère le bouton du lien.</p>` +
+  c.innerHTML = `<p class="hint" style="margin-bottom:18px">Les variables entre doubles accolades (ex. <code>{{name}}</code>) sont remplacées automatiquement. <code>{{link}}</code> insère le bouton du lien. <code>{{espace}}</code> indique le portail concerné (« administrateur », « commerçant » ou « gérant de bar ») — utilisable aussi dans l'objet de l'e-mail.</p>` +
     tpls.map(t => {
       const m = TPL_META[t.key] || { label: t.key, ph: '', email: true };
       return `<div class="panel" style="margin-bottom:20px"><div class="panel-head"><h3>${esc(m.label)}</h3>${m.email ? '<span class="badge badge--ardoise">E-mail</span>' : '<span class="badge badge--ocre">Document</span>'}</div>
