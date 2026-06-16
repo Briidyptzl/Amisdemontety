@@ -276,13 +276,19 @@ async function handleApi(request, env, url) {
     const title = clean(b.title, 120), description = clean(b.description, 2000);
     const author = clean(b.author_name, 120), contact = clean(b.contact, 200);
     const category = clean(b.category, 60), area = clean(b.area, 120);
-    if (!type || !title || !description || !author || !contact)
-      return json({ error: 'Type, titre, description, nom et contact sont requis.' }, 400);
+    const email = clean(b.email, 254);
+    if (!type || !title || !description || !author || !contact || !email)
+      return json({ error: 'Type, titre, description, nom, e-mail et contact sont requis.' }, 400);
+    if (!isValidEmail(email)) return json({ error: 'Adresse e-mail invalide.' }, 400);
+    // Auto-validation si l'e-mail correspond à un membre de l'association (liste des adhésions)
+    const member = await env.DB.prepare(
+      `SELECT 1 AS ok FROM memberships WHERE lower(email) = lower(?) AND status = 'accepted' LIMIT 1`).bind(email).first();
+    const status = member ? 'published' : 'pending';
     await env.DB.prepare(
-      `INSERT INTO listings (type, category, title, description, author_name, contact, area, status)
-       VALUES (?,?,?,?,?,?,?, 'published')`)
-      .bind(type, category, title, description, author, contact, area).run();
-    return json({ ok: true });
+      `INSERT INTO listings (type, category, title, description, author_name, contact, area, email, status)
+       VALUES (?,?,?,?,?,?,?,?,?)`)
+      .bind(type, category, title, description, author, contact, area, email, status).run();
+    return json({ ok: true, status });
   }
 
   // Commerçants — vitrine publique
@@ -658,7 +664,9 @@ async function handleAdmin(request, env, url, method, session) {
   /* ----- Entraide (modération des annonces) ----- */
   if (path === '/api/admin/listings' && method === 'GET') {
     const { results } = await env.DB.prepare(
-      `SELECT * FROM listings ORDER BY created_at DESC, id DESC`).all();
+      `SELECT l.*,
+              EXISTS(SELECT 1 FROM memberships m WHERE lower(m.email) = lower(l.email) AND m.status = 'accepted') AS is_member
+         FROM listings l ORDER BY l.created_at DESC, l.id DESC`).all();
     return json(results || []);
   }
   const lstMatch = path.match(/^\/api\/admin\/listings\/(\d+)$/);
@@ -666,6 +674,19 @@ async function handleAdmin(request, env, url, method, session) {
     const b = await request.json().catch(() => ({}));
     const status = ['published', 'pending', 'hidden'].includes(b.status) ? b.status : 'published';
     await env.DB.prepare(`UPDATE listings SET status=? WHERE id=?`).bind(status, Number(lstMatch[1])).run();
+    return json({ ok: true });
+  }
+  if (lstMatch && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    const type = (b.type === 'offre' || b.type === 'demande') ? b.type : '';
+    const title = clean(b.title, 120), description = clean(b.description, 2000);
+    const author = clean(b.author_name, 120), contact = clean(b.contact, 200);
+    if (!type || !title || !description || !author || !contact)
+      return json({ error: 'Type, titre, description, nom et contact sont requis.' }, 400);
+    await env.DB.prepare(
+      `UPDATE listings SET type=?, category=?, title=?, description=?, author_name=?, contact=?, area=?, email=? WHERE id=?`)
+      .bind(type, clean(b.category, 60), title, description, author, contact, clean(b.area, 120),
+        clean(b.email, 254), Number(lstMatch[1])).run();
     return json({ ok: true });
   }
   if (lstMatch && method === 'DELETE') {

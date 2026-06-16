@@ -92,21 +92,28 @@ function initForm() {
     const payload = {
       type: form.type.value, category: form.category.value,
       title: form.title.value.trim(), description: form.description.value.trim(),
-      author_name: form.author_name.value.trim(), contact: form.contact.value.trim(),
-      area: form.area.value.trim(), website: form.website.value,
+      author_name: form.author_name.value.trim(), email: form.email.value.trim(),
+      contact: form.contact.value.trim(), area: form.area.value.trim(), website: form.website.value,
     };
+    const errBox = document.getElementById('entraide-error');
+    errBox.hidden = true;
     const btn = document.getElementById('entraide-submit');
-    btn.disabled = true; btn.textContent = 'Publication…';
+    btn.disabled = true; btn.textContent = 'Envoi…';
     try {
       const res = await fetch('/api/listings', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { errBox.textContent = data.error || 'Une erreur est survenue. Réessayez.'; errBox.hidden = false; return; }
+      const msg = document.getElementById('entraide-success-msg');
+      if (msg) msg.textContent = data.status === 'pending'
+        ? "Merci ! Votre adresse ne figure pas (encore) dans la liste des adhérents : votre annonce sera publiée après validation par un administrateur."
+        : 'Votre annonce est publiée. Les voisins peuvent désormais vous contacter.';
       form.reset();
       showSuccess(true);
       loadListings();
     } catch (_) {
-      showSuccess(true); form.reset(); loadListings();
+      errBox.textContent = 'Connexion impossible. Vérifiez votre réseau et réessayez.'; errBox.hidden = false;
     } finally { btn.disabled = false; btn.textContent = "Publier l'annonce"; }
   });
 }

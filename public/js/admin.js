@@ -673,26 +673,72 @@ async function renderAdminListings() {
     </div>`;
   $$('[data-pub]', c).forEach(b => b.addEventListener('click', () => setListing(b.dataset.pub, 'published')));
   $$('[data-hide]', c).forEach(b => b.addEventListener('click', () => setListing(b.dataset.hide, 'hidden')));
+  $$('[data-edit]', c).forEach(b => b.addEventListener('click', () => listingModal(LISTINGS_CACHE.find(l => l.id == b.dataset.edit))));
   $$('[data-del]', c).forEach(b => b.addEventListener('click', () => delListing(b.dataset.del)));
   icons();
 }
+let LISTINGS_CACHE = [];
 function listingRow(l) {
+  LISTINGS_CACHE = LISTINGS_CACHE.filter(x => x.id !== l.id).concat(l);
   const st = LISTING_STATUS[l.status] || LISTING_STATUS.published;
   const typ = l.type === 'demande'
     ? '<span class="badge badge--brique">Je cherche</span>'
     : '<span class="badge badge--olive">Je propose</span>';
+  const member = Number(l.is_member)
+    ? '<span class="badge badge--olive" title="Adresse présente dans la liste des adhésions">Adhérent·e</span>'
+    : '<span class="badge badge--neutral" title="Non trouvé dans la liste des adhésions">Non-membre</span>';
   const isLive = l.status === 'published';
   return `<tr>
     <td><div class="cell-title">${esc(l.title)}</div><div class="cell-sub">${esc((l.description || '').slice(0, 80))}</div>${l.category ? `<div class="cell-sub">${esc(l.category)}${l.area ? ' · ' + esc(l.area) : ''}</div>` : ''}</td>
     <td>${typ}</td>
-    <td>${esc(l.author_name)}<div class="cell-sub">${esc(l.contact)}</div><div class="cell-sub">${fmtDate(l.created_at)}</div></td>
+    <td>${esc(l.author_name)} ${member}<div class="cell-sub">${esc(l.email || '—')}</div><div class="cell-sub">Contact public : ${esc(l.contact)}</div><div class="cell-sub">${fmtDate(l.created_at)}</div></td>
     <td><span class="badge ${st.badge}">${st.label}</span></td>
     <td class="col-actions">
       ${isLive
-        ? `<button class="icon-btn" data-hide="${l.id}" title="Masquer"><span data-lucide="eye-off"></span></button>`
-        : `<button class="icon-btn ok" data-pub="${l.id}" title="Publier"><span data-lucide="eye"></span></button>`}
+        ? `<button class="icon-btn" data-hide="${l.id}" title="Masquer / désafficher"><span data-lucide="eye-off"></span></button>`
+        : `<button class="icon-btn ok" data-pub="${l.id}" title="Valider et publier"><span data-lucide="eye"></span></button>`}
+      <button class="icon-btn" data-edit="${l.id}" title="Modifier"><span data-lucide="pencil"></span></button>
       <button class="icon-btn danger" data-del="${l.id}" title="Supprimer"><span data-lucide="trash-2"></span></button>
     </td></tr>`;
+}
+function listingModal(l) {
+  if (!l) return;
+  openModal(`
+    <h3>Modifier l'annonce</h3>
+    <form id="listing-form">
+      <div class="field-row">
+        <div class="field"><label>Type</label><select name="type">
+          <option value="demande" ${l.type === 'demande' ? 'selected' : ''}>Je cherche</option>
+          <option value="offre" ${l.type === 'offre' ? 'selected' : ''}>Je propose</option>
+        </select></div>
+        <div class="field"><label>Catégorie</label><input name="category" value="${esc(l.category || '')}" /></div>
+      </div>
+      <div class="field"><label>Titre</label><input name="title" value="${esc(l.title || '')}" required /></div>
+      <div class="field"><label>Description</label><textarea name="description" required>${esc(l.description || '')}</textarea></div>
+      <div class="field-row">
+        <div class="field"><label>Nom</label><input name="author_name" value="${esc(l.author_name || '')}" required /></div>
+        <div class="field"><label>Secteur</label><input name="area" value="${esc(l.area || '')}" /></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>E-mail (vérif. adhésion)</label><input name="email" type="email" value="${esc(l.email || '')}" /></div>
+        <div class="field"><label>Contact public</label><input name="contact" value="${esc(l.contact || '')}" required /></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button>
+        <button type="submit" class="btn btn--accent btn--md">Enregistrer</button>
+      </div>
+    </form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#listing-form').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const f = ev.target;
+    const payload = { type: f.type.value, category: f.category.value.trim(), title: f.title.value.trim(),
+      description: f.description.value.trim(), author_name: f.author_name.value.trim(),
+      area: f.area.value.trim(), email: f.email.value.trim(), contact: f.contact.value.trim() };
+    try { await api('/admin/listings/' + l.id, { method: 'PUT', body: JSON.stringify(payload) });
+      closeModal(); toast('Annonce modifiée'); renderAdminListings(); }
+    catch (ex) { toast(ex.message, true); }
+  });
 }
 async function setListing(id, status) {
   try { await api('/admin/listings/' + id, { method: 'PATCH', body: JSON.stringify({ status }) }); toast(status === 'published' ? 'Annonce publiée' : 'Annonce masquée'); renderAdminListings(); }

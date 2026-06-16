@@ -87,10 +87,14 @@ CREATE TABLE IF NOT EXISTS listings (
   description TEXT NOT NULL,
   author_name TEXT NOT NULL,
   contact     TEXT NOT NULL,                 -- e-mail ou téléphone (affiché publiquement)
+  email       TEXT,                          -- e-mail privé du déposant (vérification d'adhésion, non affiché)
   area        TEXT,
   status      TEXT NOT NULL DEFAULT 'published', -- published / pending / hidden
   created_at  TEXT DEFAULT (datetime('now'))
 );
+-- Dépôt public : si l'e-mail correspond à un membre (memberships.status='accepted') → 'published'
+-- d'office ; sinon → 'pending' (validation par un administrateur). Les admins peuvent
+-- publier/masquer/modifier/supprimer toutes les annonces.
 
 -- Commerçants du quartier (comptes protégés par mot de passe haché PBKDF2)
 CREATE TABLE IF NOT EXISTS merchants (

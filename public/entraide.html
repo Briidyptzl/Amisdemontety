@@ -32,9 +32,10 @@
       <div id="entraide-success" class="form-success" hidden>
         <div class="pop"><span data-lucide="party-popper"></span></div>
         <h3 style="font-size:1.6rem; margin:0 0 8px">Merci&nbsp;!</h3>
-        <p style="color:var(--color-text-muted); margin:0 0 24px">Votre annonce est publiée. Les voisins peuvent désormais vous contacter.</p>
+        <p id="entraide-success-msg" style="color:var(--color-text-muted); margin:0 0 24px">Votre annonce est publiée. Les voisins peuvent désormais vous contacter.</p>
         <button class="btn btn--secondary btn--md" type="button" id="entraide-reset">Déposer une autre annonce</button>
       </div>
+      <div id="entraide-error" class="login-error" hidden style="margin-bottom:16px"></div>
 
       <form id="entraide-form" novalidate>
         <h2 style="font-size:1.4rem; margin:0 0 18px">Votre annonce</h2>
@@ -68,6 +69,11 @@
             <label for="l-area">Secteur / quartier</label>
             <input id="l-area" name="area" maxlength="120" placeholder="Montety, Le Mourillon…" />
           </div>
+        </div>
+        <div class="field">
+          <label for="l-email">Votre adresse e-mail d'adhérent</label>
+          <input id="l-email" name="email" type="email" maxlength="254" placeholder="vous@exemple.fr" required />
+          <div class="hint">🐝 Sert à vérifier votre adhésion. Les adhérents, bienfaiteurs, donateurs et membres d'honneur de l'association sont publiés immédiatement&nbsp;; sinon l'annonce est validée par un administrateur. Cette adresse <strong>n'est pas affichée</strong> publiquement.</div>
         </div>
         <div class="field" style="margin-bottom:10px">
           <label for="l-contact">Comment vous joindre (e-mail ou téléphone)</label>
