@@ -48,16 +48,18 @@ function renderFooter() {
         </div>
       </div>
       <div class="footer-cols">
-        <div class="footer-col">
+        <div class="footer-col footer-col--nav">
           <h4>Le quartier</h4>
-          <a href="index.html">Accueil</a>
-          <a href="agenda.html">L'agenda</a>
-          <a href="quartier.html">Le quartier</a>
-          <a href="entraide.html">Entraide</a>
-          <a href="commercants.html">Commerçants</a>
-          <a href="bar.html">Le bar</a>
-          <a href="adherer.html">Adhérer</a>
-          <a href="don.html">Faire un don</a>
+          <div class="footer-links">
+            <a href="index.html">Accueil</a>
+            <a href="agenda.html">L'agenda</a>
+            <a href="quartier.html">Le quartier</a>
+            <a href="entraide.html">Entraide</a>
+            <a href="commercants.html">Commerçants</a>
+            <a href="bar.html">Le bar</a>
+            <a href="adherer.html">Adhérer</a>
+            <a href="don.html">Faire un don</a>
+          </div>
         </div>
         <div class="footer-col">
           <h4>Nous trouver</h4>
