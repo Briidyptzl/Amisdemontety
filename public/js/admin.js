@@ -438,18 +438,32 @@ function memberModal() {
     <div class="form-grid2"><div class="field"><label>Prénom</label><input name="prenom" required></div><div class="field"><label>Nom</label><input name="nom" required></div></div>
     <div class="field"><label>E-mail (facultatif)</label><input name="email" type="email"></div>
     <div class="field"><label>Type de membre</label><select name="mtype">${Object.entries(MTYPE_LBL).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div>
+    <div id="cotis-new">
     <div class="form-grid2"><div class="field"><label>Montant (€)</label><input name="amount" type="number" min="0" step="0.01"></div>
       <div class="field"><label>Moyen</label><select name="pay_method"><option value="">—</option>${Object.entries(PAY_LBL).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></div></div>
     <div class="field"><label>Paiement</label><select name="pay_status"><option value="">Non payé</option><option value="attente">En attente d'encaissement</option><option value="encaisse">Encaissé</option></select></div>
     <p class="hint">Un membre « encaissé » alimente automatiquement la comptabilité (cotisation 756).</p>
+    </div>
+    <p class="hint" id="honneur-note" hidden>Les membres d'honneur ne paient pas de cotisation.</p>
     <div class="modal-actions"><button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button><button type="submit" class="btn btn--accent btn--md">Ajouter</button></div></form>`);
   $('#modal-cancel').addEventListener('click', closeModal);
+  const mNew = $('#member-form').mtype;
+  const toggleNew = () => {
+    const honor = mNew.value === 'honneur';
+    $('#cotis-new').hidden = honor;
+    $('#honneur-note').hidden = !honor;
+  };
+  mNew.addEventListener('change', toggleNew); toggleNew();
   $('#member-form').addEventListener('submit', async e => {
     e.preventDefault(); const f = e.target;
+    const honor = f.mtype.value === 'honneur';
     try {
       await api('/admin/memberships', { method: 'POST', body: JSON.stringify({
         prenom: f.prenom.value.trim(), nom: f.nom.value.trim(), email: f.email.value.trim(),
-        mtype: f.mtype.value, amount: f.amount.value || null, pay_method: f.pay_method.value || null, pay_status: f.pay_status.value || null }) });
+        mtype: f.mtype.value,
+        amount: honor ? null : (f.amount.value || null),
+        pay_method: honor ? null : (f.pay_method.value || null),
+        pay_status: honor ? null : (f.pay_status.value || null) }) });
       closeModal(); toast('Membre ajouté'); renderMemberships();
     } catch (ex) { toast(ex.message, true); }
   });
@@ -460,6 +474,7 @@ function paymentModal(m) {
     <h3>Paiement — ${esc(m.prenom)} ${esc(m.nom)}</h3>
     <form id="pay-form">
       <div class="field"><label>Type de membre</label><select name="mtype">${Object.entries(MTYPE_LBL).map(([k, v]) => `<option value="${k}" ${m.mtype === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+      <div id="cotis-pay">
       <div class="form-grid2">
         <div class="field"><label>Montant (€)</label><input name="amount" type="number" min="0" step="0.01" value="${m.amount != null ? esc(m.amount) : ''}" /></div>
         <div class="field"><label>Moyen</label>
@@ -474,18 +489,31 @@ function paymentModal(m) {
         </select>
       </div>
       <p class="hint">« Encaissé » alimente automatiquement la comptabilité (cotisation 756). « En attente » garde la trace d'un chèque reçu mais non déposé.</p>
+      </div>
+      <p class="hint" id="honneur-note-pay" hidden>Les membres d'honneur ne paient pas de cotisation.</p>
       <div class="modal-actions">
         <button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button>
         <button type="submit" class="btn btn--accent btn--md">Enregistrer</button>
       </div>
     </form>`);
   $('#modal-cancel').addEventListener('click', closeModal);
+  const mPay = $('#pay-form').mtype;
+  const togglePay = () => {
+    const honor = mPay.value === 'honneur';
+    $('#cotis-pay').hidden = honor;
+    $('#honneur-note-pay').hidden = !honor;
+  };
+  mPay.addEventListener('change', togglePay); togglePay();
   $('#pay-form').addEventListener('submit', async e => {
     e.preventDefault();
     const f = e.target;
+    const honor = f.mtype.value === 'honneur';
     try {
       await api('/admin/memberships/' + m.id, { method: 'PATCH', body: JSON.stringify({
-        mtype: f.mtype.value, amount: f.amount.value || null, pay_method: f.pay_method.value || null, pay_status: f.pay_status.value || null }) });
+        mtype: f.mtype.value,
+        amount: honor ? null : (f.amount.value || null),
+        pay_method: honor ? null : (f.pay_method.value || null),
+        pay_status: honor ? null : (f.pay_status.value || null) }) });
       closeModal(); toast('Paiement enregistré'); renderMemberships();
     } catch (ex) { toast(ex.message, true); }
   });
