@@ -1,0 +1,30 @@
+name = "osint-x"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Tableau de bord statique servi par le Worker (dossier public/)
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# Base de données D1
+# → Remplacez database_id par la valeur renvoyée par `npm run db:create`.
+#   (L'UUID zéro ci-dessous n'est qu'un placeholder pour le développement local.)
+[[d1_databases]]
+binding = "DB"
+database_name = "osint-x"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+# Variables non secrètes
+[vars]
+# Modèle Claude utilisé pour le classement et les résumés.
+# Par défaut le plus capable ; passez à "claude-haiku-4-5" pour réduire le coût.
+OSINT_MODEL = "claude-opus-4-8"
+# Identifiant de la Liste X à synchroniser (facultatif — laissez vide sans API X).
+X_LIST_ID = ""
+
+# Secrets (NE PAS mettre ici) — définissez-les via :
+#   wrangler secret put ANTHROPIC_API_KEY   # clé API Anthropic (classement + résumés)
+#   wrangler secret put X_BEARER_TOKEN       # Bearer token API X v2 (synchro Liste)
+#   wrangler secret put INGEST_TOKEN         # jeton pour protéger /api/ingest et /api/x/sync (facultatif)

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OSINT-X — Tableau de bord</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">◎</span>
+      <div>
+        <h1>OSINT‑X</h1>
+        <p class="tagline">Résumés OSINT par thème et par localisation</p>
+      </div>
+    </div>
+    <div class="status" id="status">
+      <span class="dot" id="dot-claude" title="Moteur IA"></span> Claude
+      <span class="dot" id="dot-x" title="API X"></span> X
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-view="air">Air</button>
+    <button class="tab" data-view="naval">Naval</button>
+    <button class="tab" data-view="geopolitique">Géopolitique</button>
+    <button class="tab" data-view="locations">📍 Localisations</button>
+    <button class="tab" data-view="import">＋ Import</button>
+  </nav>
+
+  <main id="main">
+    <!-- Vue thème -->
+    <section class="view" id="view-theme">
+      <div class="summary-card" id="summary-card">
+        <div class="summary-head">
+          <h2 id="summary-title">Résumé IA</h2>
+          <button class="btn" id="btn-regen">↻ Régénérer</button>
+        </div>
+        <div class="summary-body" id="summary-body">Chargement…</div>
+        <div class="summary-meta" id="summary-meta"></div>
+      </div>
+      <h3 class="section-title" id="feed-title">Publications</h3>
+      <div class="grid" id="feed"></div>
+    </section>
+
+    <!-- Vue localisations -->
+    <section class="view hidden" id="view-locations">
+      <h2 class="section-title">Localisations géographiques</h2>
+      <p class="hint">Chaque lieu affiche le nombre de publications par thème (Air / Naval / Géopolitique) et des images associées.</p>
+      <div class="locations" id="locations"></div>
+    </section>
+
+    <!-- Vue import -->
+    <section class="view hidden" id="view-import">
+      <h2 class="section-title">Importer des données OSINT</h2>
+      <p class="hint">Collez le texte d'une publication (et éventuellement son lien, son auteur et des URL d'images). Le contenu sera classé automatiquement par thème et localisé.</p>
+      <form id="import-form" class="import-form">
+        <label>Texte de la publication *
+          <textarea name="text" rows="4" required placeholder="Ex : Deux Rafale interceptent un appareil non identifié au-dessus de la mer Baltique…"></textarea>
+        </label>
+        <div class="row">
+          <label>Auteur <input name="author" placeholder="@OSINTdefender" /></label>
+          <label>Lien source <input name="url" placeholder="https://x.com/…/status/…" /></label>
+        </div>
+        <label>URL d'images (une par ligne)
+          <textarea name="media" rows="2" placeholder="https://…/photo1.jpg"></textarea>
+        </label>
+        <label>Jeton d'ingestion (si configuré)
+          <input name="token" type="password" placeholder="X-Ingest-Token" />
+        </label>
+        <div class="row">
+          <button class="btn primary" type="submit">Classer et ajouter</button>
+          <button class="btn" type="button" id="btn-xsync">↻ Synchroniser la Liste X</button>
+        </div>
+        <div class="import-result" id="import-result"></div>
+      </form>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>OSINT‑X · Cloudflare Workers + D1 · Claude</span>
+  </footer>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

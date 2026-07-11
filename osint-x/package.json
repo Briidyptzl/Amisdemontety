@@ -1,0 +1,19 @@
+{
+  "name": "osint-x",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agrégateur OSINT — résumés par thème (air / naval / géopolitique) et par localisation, alimenté par X + Claude. Cloudflare Workers + D1.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create osint-x",
+    "db:schema": "wrangler d1 execute osint-x --remote --file=./schema.sql",
+    "db:schema:local": "wrangler d1 execute osint-x --local --file=./schema.sql"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.20.0"
+  }
+}
