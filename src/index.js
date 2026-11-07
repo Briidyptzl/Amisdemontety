@@ -357,9 +357,10 @@ async function handleApi(request, env, url) {
   /* ===================== Espace commerçant ===================== */
   if (path === '/api/merchant/login' && method === 'POST') {
     const b = await request.json().catch(() => ({}));
-    const login = clean(b.login, 80).toLowerCase(), password = clean(b.password, 200);
+    const login = clean(b.login, 254).toLowerCase(), password = clean(b.password, 200);
+    // Connexion par identifiant (slug) OU par e-mail : le commerçant utilise ce qu'il connaît
     const mer = await env.DB.prepare(
-      `SELECT id, name, slug, pass_hash, pass_salt, pass_iter, active FROM merchants WHERE lower(slug) = ?`).bind(login).first();
+      `SELECT id, name, slug, pass_hash, pass_salt, pass_iter, active FROM merchants WHERE lower(slug) = ? OR lower(email) = ?`).bind(login, login).first();
     const salt = mer ? mer.pass_salt : '00000000000000000000000000000000';
     const iter = mer ? mer.pass_iter : 100000;
     const computed = await pbkdf2Hex(password, salt, iter);
