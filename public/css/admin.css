@@ -240,6 +240,10 @@
 .stock-low { color: var(--brique-600); }
 @media (max-width: 820px) { .bar-caisse { grid-template-columns: 1fr; } .bar-ticket { position: static; } }
 
+/* Les tableaux larges défilent horizontalement au lieu de casser la mise en page */
+.panel-body { padding: 6px 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.panel-body > .table { min-width: 560px; }
+
 @media (max-width: 900px) {
   .acc-two { grid-template-columns: 1fr; }
   .acc-line-row { grid-template-columns: 1fr 1fr 32px; }
@@ -253,6 +257,18 @@
   .dash-side.is-open { transform: translateX(0); }
   #dash-side-toggle { display: inline-flex; }
   .dash-content { padding: 20px; }
-  .table th:nth-child(3), .table td:nth-child(3) { display: none; }
   .form-grid2 { grid-template-columns: 1fr; }
+}
+
+/* Téléphone */
+@media (max-width: 560px) {
+  .dash-content { padding: 14px; }
+  .dash-topbar { padding: 12px 14px; }
+  .dash-topbar h2 { font-size: 1.2rem; }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+  .modal-overlay { padding: 12px; align-items: flex-start; }
+  .modal-card { max-width: none; width: 100%; padding: 18px; margin: 10px auto; }
+  .table th, .table td { padding: 10px 12px; font-size: 0.9rem; }
+  .acc-toolbar { gap: 10px; }
+  .col-actions { white-space: nowrap; }
 }

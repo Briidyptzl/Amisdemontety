@@ -4,3 +4,6 @@ node_modules/
 dist/
 .DS_Store
 *.log
+
+# Données de test locales (secrets de test, ne pas publier)
+seed-local.sql

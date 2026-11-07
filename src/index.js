@@ -923,6 +923,30 @@ async function handleAdmin(request, env, url, method, session) {
     const csv = '﻿' + rows.map(r => r.map(csvCell).join(';')).join('\r\n');
     return new Response(csv, { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="comptabilite-montety.csv"' } });
   }
+  /* ----- Comptabilité : export Excel (.xls) entre deux dates ----- */
+  if (path === '/api/admin/accounting/export.xls' && method === 'GET') {
+    const from = clean(url.searchParams.get('from'), 20), to = clean(url.searchParams.get('to'), 20);
+    let q = `SELECT e.edate, e.label, e.piece, a.code AS acode, a.name AS aname, l.debit, l.credit, l.label AS lline
+               FROM journal_lines l JOIN journal_entries e ON e.id=l.entry_id JOIN accounts a ON a.id=l.account_id`;
+    const binds = [];
+    if (from && to) { q += ` WHERE e.edate >= ? AND e.edate <= ?`; binds.push(from, to); }
+    q += ` ORDER BY e.edate, e.id, l.id`;
+    const { results } = await env.DB.prepare(q).bind(...binds).all();
+    const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    const num = n => (n ? Number(n).toFixed(2).replace('.', ',') : '');
+    let totD = 0, totC = 0;
+    const body = (results || []).map(r => { totD += Number(r.debit) || 0; totC += Number(r.credit) || 0;
+      return `<tr><td>${esc(r.edate)}</td><td>${esc(r.label)}</td><td>${esc(r.piece || '')}</td><td>${esc(r.acode)}</td><td>${esc(r.aname)}</td><td style="mso-number-format:'0.00'">${num(r.debit)}</td><td style="mso-number-format:'0.00'">${num(r.credit)}</td><td>${esc(r.lline || '')}</td></tr>`; }).join('');
+    const period = (from && to) ? `du ${from} au ${to}` : 'exercice complet';
+    const html = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8">
+      <style>table{border-collapse:collapse}th,td{border:1px solid #999;padding:4px 8px;font-family:Arial;font-size:11pt}th{background:#dfe6ea;font-weight:bold}</style></head>
+      <body><h3>Comptabilité — Les Amis de Montety (${esc(period)})</h3>
+      <table><thead><tr><th>Date</th><th>Écriture</th><th>Pièce</th><th>Compte</th><th>Libellé compte</th><th>Débit</th><th>Crédit</th><th>Détail</th></tr></thead>
+      <tbody>${body || '<tr><td colspan="8">Aucune écriture sur la période.</td></tr>'}
+      <tr><th colspan="5" style="text-align:right">Totaux</th><th>${num(totD)}</th><th>${num(totC)}</th><th></th></tr></tbody></table></body></html>`;
+    const fname = `comptabilite-montety${from && to ? '-' + from + '_' + to : ''}.xls`;
+    return new Response(html, { headers: { 'Content-Type': 'application/vnd.ms-excel; charset=utf-8', 'Content-Disposition': `attachment; filename="${fname}"` } });
+  }
 
   /* ----- Lieu de vie : devis ----- */
   if (path === '/api/admin/devis' && method === 'GET') {
@@ -1103,7 +1127,7 @@ async function handleAdmin(request, env, url, method, session) {
 
   /* ----- Bar : comptes gérants (invitation/réinitialisation par e-mail) ----- */
   if (path === '/api/admin/bar/managers' && method === 'GET') {
-    const { results } = await env.DB.prepare(`SELECT id, name, email, active, created_at FROM bar_managers ORDER BY name`).all();
+    const { results } = await env.DB.prepare(`SELECT id, name, email, active, treasurer, created_at FROM bar_managers ORDER BY name`).all();
     return json(results || []);
   }
   if (path === '/api/admin/bar/managers' && method === 'POST') {
@@ -1119,6 +1143,21 @@ async function handleAdmin(request, env, url, method, session) {
     catch (e) { return json({ ok: true, emailed: false, warning: String(e.message || e) }); }
   }
   const bmgMatch = path.match(/^\/api\/admin\/bar\/managers\/(\d+)$/);
+  if (bmgMatch && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    const id = Number(bmgMatch[1]);
+    const name = clean(b.name, 120);
+    if (!name) return json({ error: 'Nom requis.' }, 400);
+    const email = b.email === undefined ? null : clean(b.email, 254).toLowerCase();
+    if (email !== null && !isValidEmail(email)) return json({ error: 'E-mail invalide.' }, 400);
+    if (email) {
+      const dup = await env.DB.prepare(`SELECT id FROM bar_managers WHERE lower(email)=? AND id<>?`).bind(email, id).first();
+      if (dup) return json({ error: 'Un gérant avec cet e-mail existe déjà.' }, 409);
+    }
+    await env.DB.prepare(`UPDATE bar_managers SET name=?, email=COALESCE(?, email), active=?, treasurer=? WHERE id=?`)
+      .bind(name, email, b.active === 0 ? 0 : 1, b.treasurer ? 1 : 0, id).run();
+    return json({ ok: true });
+  }
   if (bmgMatch && method === 'DELETE') {
     await env.DB.prepare(`DELETE FROM bar_managers WHERE id=?`).bind(Number(bmgMatch[1])).run();
     return json({ ok: true });
@@ -1362,20 +1401,29 @@ async function recordBarSale(env, b) {
   }
   if (lines.length === 0) { const fa = Number(b.free_amount) || 0; if (fa > 0) total = fa; }
   total = Math.round(total * 100) / 100;
-  if (total <= 0) return { error: 'Indiquez des produits vendus ou un montant.' };
-  const r = await env.DB.prepare(`INSERT INTO bar_sales (sdate, total, note) VALUES (?,?,?)`).bind(sdate, total, note || null).run();
+  const method = ['especes', 'carte', 'cadeau'].includes(b.method) ? b.method : 'especes';
+  const seller = clean(b.seller, 120) || null;
+  // Un cadeau peut être à 0 € ; sinon il faut un montant
+  if (method !== 'cadeau' && total <= 0) return { error: 'Indiquez des produits vendus ou un montant.' };
+  if (method === 'cadeau' && lines.length === 0 && total <= 0) return { error: 'Ajoutez les produits offerts.' };
+  const r = await env.DB.prepare(`INSERT INTO bar_sales (sdate, total, note, method, seller) VALUES (?,?,?,?,?)`)
+    .bind(sdate, method === 'cadeau' ? total : total, note || null, method, seller).run();
   const sid = r.meta.last_row_id;
   for (const l of lines) {
     await env.DB.prepare(`INSERT INTO bar_sale_items (sale_id, product_id, name, qty, unit_price) VALUES (?,?,?,?,?)`)
       .bind(sid, l.product_id, l.name, l.qty, l.unit_price).run();
     await env.DB.prepare(`UPDATE bar_products SET stock = stock - ? WHERE id=?`).bind(l.qty, l.product_id).run();
   }
-  const caisse = await accountIdByCode(env, '531'), recettes = await accountIdByCode(env, '706');
-  if (caisse && recettes) await createEntry(env, {
-    edate: sdate, label: 'Recette du bar' + (note ? (' — ' + note) : ''), source: 'bar', source_id: sid,
-    lines: [{ account_id: caisse, debit: total, credit: 0 }, { account_id: recettes, debit: 0, credit: total }],
-  });
-  return { ok: true, id: sid, total };
+  // Comptabilité : espèces → caisse 531, carte → banque 512. Un cadeau ne génère aucune recette.
+  if (method !== 'cadeau' && total > 0) {
+    const assetId = await accountIdByCode(env, method === 'carte' ? '512' : '531');
+    const recettes = await accountIdByCode(env, '706');
+    if (assetId && recettes) await createEntry(env, {
+      edate: sdate, label: 'Recette du bar' + (note ? (' — ' + note) : ''), source: 'bar', source_id: sid,
+      lines: [{ account_id: assetId, debit: total, credit: 0 }, { account_id: recettes, debit: 0, credit: total }],
+    });
+  }
+  return { ok: true, id: sid, total, method };
 }
 async function deleteBarSale(env, id) {
   const its = (await env.DB.prepare(`SELECT * FROM bar_sale_items WHERE sale_id=?`).bind(id).all()).results || [];
@@ -1386,8 +1434,9 @@ async function deleteBarSale(env, id) {
 }
 async function handleBarManager(request, env, url, method, session) {
   const path = url.pathname, mid = session.bid;
+  const isTreasurer = async () => { const m = await env.DB.prepare(`SELECT treasurer FROM bar_managers WHERE id=?`).bind(mid).first(); return !!(m && m.treasurer); };
   if (path === '/api/bar/manager/me' && method === 'GET') {
-    const m = await env.DB.prepare(`SELECT id, name, email FROM bar_managers WHERE id=?`).bind(mid).first();
+    const m = await env.DB.prepare(`SELECT id, name, email, treasurer FROM bar_managers WHERE id=?`).bind(mid).first();
     return m ? json(m) : json({ error: 'Compte introuvable' }, 404);
   }
   if (path === '/api/bar/manager/consignes' && method === 'GET') return json({ consignes: (await getSetting(env, 'bar_consignes')) || '' });
@@ -1404,8 +1453,12 @@ async function handleBarManager(request, env, url, method, session) {
     const b = await request.json().catch(() => ({}));
     const name = clean(b.name, 120);
     if (!name) return json({ error: 'Nom du produit requis.' }, 400);
-    await env.DB.prepare(`INSERT INTO bar_products (name, price, stock, unit, sort) VALUES (?,?,?,?,?)`)
-      .bind(name, Number(b.price) || 0, Number(b.stock) || 0, clean(b.unit, 30) || null, parseInt(b.sort, 10) || 0).run();
+    await env.DB.prepare(`INSERT INTO bar_products (name, price, stock, unit, sort, location, expiry, threshold, cost, category) VALUES (?,?,?,?,?,?,?,?,?,?)`)
+      .bind(name, Number(b.price) || 0, Number(b.stock) || 0, clean(b.unit, 30) || null, parseInt(b.sort, 10) || 0,
+        clean(b.location, 80) || null, clean(b.expiry, 20) || null,
+        (b.threshold === '' || b.threshold == null) ? 0 : Number(b.threshold) || 0,
+        (b.cost === '' || b.cost == null) ? null : Number(b.cost),
+        ['alcool', 'soft', 'sale', 'sucre'].includes(b.category) ? b.category : null).run();
     return json({ ok: true });
   }
   const bpmS = path.match(/^\/api\/bar\/manager\/products\/(\d+)\/stock$/);
@@ -1420,8 +1473,12 @@ async function handleBarManager(request, env, url, method, session) {
     const b = await request.json().catch(() => ({}));
     const name = clean(b.name, 120);
     if (!name) return json({ error: 'Nom requis.' }, 400);
-    await env.DB.prepare(`UPDATE bar_products SET name=?, price=?, unit=?, active=?, sort=? WHERE id=?`)
-      .bind(name, Number(b.price) || 0, clean(b.unit, 30) || null, b.active === 0 ? 0 : 1, parseInt(b.sort, 10) || 0, Number(bpmM[1])).run();
+    await env.DB.prepare(`UPDATE bar_products SET name=?, price=?, unit=?, active=?, sort=?, location=?, expiry=?, threshold=?, cost=?, category=? WHERE id=?`)
+      .bind(name, Number(b.price) || 0, clean(b.unit, 30) || null, b.active === 0 ? 0 : 1, parseInt(b.sort, 10) || 0,
+        clean(b.location, 80) || null, clean(b.expiry, 20) || null,
+        (b.threshold === '' || b.threshold == null) ? 0 : Number(b.threshold) || 0,
+        (b.cost === '' || b.cost == null) ? null : Number(b.cost),
+        ['alcool', 'soft', 'sale', 'sucre'].includes(b.category) ? b.category : null, Number(bpmM[1])).run();
     return json({ ok: true });
   }
   if (bpmM && method === 'DELETE') {
@@ -1436,13 +1493,206 @@ async function handleBarManager(request, env, url, method, session) {
     return json(sales);
   }
   if (path === '/api/bar/manager/sales' && method === 'POST') {
-    const r = await recordBarSale(env, await request.json().catch(() => ({})));
+    const body = await request.json().catch(() => ({}));
+    const me = await env.DB.prepare(`SELECT name FROM bar_managers WHERE id=?`).bind(mid).first();
+    body.seller = me ? me.name : null;
+    const r = await recordBarSale(env, body);
     return r.error ? json({ error: r.error }, 400) : json(r);
   }
   const bsmM = path.match(/^\/api\/bar\/manager\/sales\/(\d+)$/);
   if (bsmM && method === 'DELETE') { await deleteBarSale(env, Number(bsmM[1])); return json({ ok: true }); }
 
   if (path === '/api/bar/manager/upload' && method === 'POST') return handleUpload(request, env, 'bar' + mid);
+
+  /* ----- Lieux de stockage ----- */
+  if (path === '/api/bar/manager/locations' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT * FROM bar_locations ORDER BY sort, id`).all();
+    return json(results || []);
+  }
+  if (path === '/api/bar/manager/locations' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 80);
+    if (!name) return json({ error: 'Nom du lieu requis.' }, 400);
+    await env.DB.prepare(`INSERT INTO bar_locations (name, sort) VALUES (?,?)`).bind(name, parseInt(b.sort, 10) || 0).run();
+    return json({ ok: true });
+  }
+  const blocM = path.match(/^\/api\/bar\/manager\/locations\/(\d+)$/);
+  if (blocM && method === 'DELETE') { await env.DB.prepare(`DELETE FROM bar_locations WHERE id=?`).bind(Number(blocM[1])).run(); return json({ ok: true }); }
+
+  /* ----- Équipiers du bar ----- */
+  if (path === '/api/bar/manager/team' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT * FROM bar_team ORDER BY sort, name`).all();
+    return json(results || []);
+  }
+  if (path === '/api/bar/manager/team' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 120);
+    if (!name) return json({ error: 'Nom requis.' }, 400);
+    const pm = ['wero', 'virement', 'liquide', 'autre'].includes(b.pay_method) ? b.pay_method : null;
+    await env.DB.prepare(`INSERT INTO bar_team (name, phone, email, rib, role, pay_method, sort) VALUES (?,?,?,?,?,?,?)`)
+      .bind(name, clean(b.phone, 40) || null, clean(b.email, 254) || null, clean(b.rib, 60) || null, clean(b.role, 60) || null, pm, parseInt(b.sort, 10) || 0).run();
+    return json({ ok: true });
+  }
+  const bteamM = path.match(/^\/api\/bar\/manager\/team\/(\d+)$/);
+  if (bteamM && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 120);
+    if (!name) return json({ error: 'Nom requis.' }, 400);
+    const pm = ['wero', 'virement', 'liquide', 'autre'].includes(b.pay_method) ? b.pay_method : null;
+    await env.DB.prepare(`UPDATE bar_team SET name=?, phone=?, email=?, rib=?, role=?, pay_method=? WHERE id=?`)
+      .bind(name, clean(b.phone, 40) || null, clean(b.email, 254) || null, clean(b.rib, 60) || null, clean(b.role, 60) || null, pm, Number(bteamM[1])).run();
+    return json({ ok: true });
+  }
+  if (bteamM && method === 'DELETE') {
+    await env.DB.prepare(`DELETE FROM bar_team WHERE id=?`).bind(Number(bteamM[1])).run();
+    await env.DB.prepare(`DELETE FROM bar_availability WHERE team_id=?`).bind(Number(bteamM[1])).run();
+    return json({ ok: true });
+  }
+
+  /* ----- Disponibilités (frise) ----- */
+  if (path === '/api/bar/manager/availability' && method === 'GET') {
+    const from = clean(url.searchParams.get('from'), 20), to = clean(url.searchParams.get('to'), 20);
+    let q = `SELECT team_id, adate FROM bar_availability`, binds = [];
+    if (from && to) { q += ` WHERE adate >= ? AND adate <= ?`; binds = [from, to]; }
+    const { results } = await env.DB.prepare(q).bind(...binds).all();
+    return json(results || []);
+  }
+  if (path === '/api/bar/manager/availability' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const tid = parseInt(b.team_id, 10), adate = clean(b.adate, 20);
+    if (!tid || !/^\d{4}-\d{2}-\d{2}$/.test(adate)) return json({ error: 'Équipier et date requis.' }, 400);
+    if (b.available) await env.DB.prepare(`INSERT OR IGNORE INTO bar_availability (team_id, adate) VALUES (?,?)`).bind(tid, adate).run();
+    else await env.DB.prepare(`DELETE FROM bar_availability WHERE team_id=? AND adate=?`).bind(tid, adate).run();
+    return json({ ok: true });
+  }
+
+  /* ----- Achats / remboursements des équipiers ----- */
+  if (path === '/api/bar/manager/purchases' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT * FROM bar_purchases ORDER BY reimbursed, pdate DESC, id DESC`).all();
+    return json(results || []);
+  }
+  if (path === '/api/bar/manager/purchases' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const designation = clean(b.designation, 160);
+    if (!designation) return json({ error: 'Désignation requise.' }, 400);
+    // Seul un trésorier peut créer un achat déjà marqué remboursé
+    const rb = (b.reimbursed && await isTreasurer()) ? 1 : 0;
+    await env.DB.prepare(`INSERT INTO bar_purchases (pdate, designation, qty, amount, buyer, method, reimbursed, reimbursed_at, note, receipt_key) VALUES (?,?,?,?,?,?,?,?,?,?)`)
+      .bind(clean(b.pdate, 20) || new Date().toISOString().slice(0, 10), designation,
+        (b.qty === '' || b.qty == null) ? null : Number(b.qty), Number(b.amount) || 0,
+        clean(b.buyer, 120) || null, clean(b.method, 30) || null, rb, rb ? new Date().toISOString().slice(0, 10) : null,
+        clean(b.note, 300) || null, clean(b.receipt_key, 200) || null).run();
+    return json({ ok: true });
+  }
+  const bpurM = path.match(/^\/api\/bar\/manager\/purchases\/(\d+)$/);
+  if (bpurM && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    const id = Number(bpurM[1]);
+    const cur = await env.DB.prepare(`SELECT reimbursed FROM bar_purchases WHERE id=?`).bind(id).first();
+    if (!cur) return json({ error: 'Achat introuvable.' }, 404);
+    // Bascule « remboursé » : réservée aux trésoriers
+    if ('reimbursed' in b && Object.keys(b).length <= 2) {
+      if (!await isTreasurer()) return json({ error: "Seul un trésorier peut marquer un achat comme remboursé." }, 403);
+      const rb = b.reimbursed ? 1 : 0;
+      await env.DB.prepare(`UPDATE bar_purchases SET reimbursed=?, reimbursed_at=? WHERE id=?`)
+        .bind(rb, rb ? (new Date().toISOString().slice(0, 10)) : null, id).run();
+      return json({ ok: true });
+    }
+    // Édition complète : interdite si déjà remboursé (ligne verrouillée)
+    if (cur.reimbursed) return json({ error: 'Cet achat est remboursé : il ne peut plus être modifié.' }, 409);
+    const designation = clean(b.designation, 160);
+    if (!designation) return json({ error: 'Désignation requise.' }, 400);
+    await env.DB.prepare(`UPDATE bar_purchases SET pdate=?, designation=?, qty=?, amount=?, buyer=?, method=?, note=?, receipt_key=COALESCE(?, receipt_key) WHERE id=?`)
+      .bind(clean(b.pdate, 20) || new Date().toISOString().slice(0, 10), designation,
+        (b.qty === '' || b.qty == null) ? null : Number(b.qty), Number(b.amount) || 0,
+        clean(b.buyer, 120) || null, clean(b.method, 30) || null, clean(b.note, 300) || null,
+        b.receipt_key === undefined ? null : (clean(b.receipt_key, 200) || null), id).run();
+    return json({ ok: true });
+  }
+  if (bpurM && method === 'DELETE') {
+    const cur = await env.DB.prepare(`SELECT reimbursed FROM bar_purchases WHERE id=?`).bind(Number(bpurM[1])).first();
+    if (cur && cur.reimbursed) return json({ error: 'Cet achat est remboursé : il ne peut plus être supprimé.' }, 409);
+    await env.DB.prepare(`DELETE FROM bar_purchases WHERE id=?`).bind(Number(bpurM[1])).run();
+    return json({ ok: true });
+  }
+
+  /* ----- Réglages de la page publique du bar ----- */
+  if (path === '/api/bar/manager/settings' && method === 'GET') {
+    return json({ bar_description: (await getSetting(env, 'bar_description')) || '', bar_hours: (await getSetting(env, 'bar_hours')) || '' });
+  }
+  if (path === '/api/bar/manager/settings' && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    await env.DB.prepare(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('bar_description', ?, datetime('now'))`).bind(clean(b.bar_description, 2000)).run();
+    await env.DB.prepare(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('bar_hours', ?, datetime('now'))`).bind(clean(b.bar_hours, 200)).run();
+    return json({ ok: true });
+  }
+
+  /* ----- Matériel du bar ----- */
+  if (path === '/api/bar/manager/equipment' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT * FROM bar_equipment ORDER BY COALESCE(location,'zzz'), sort, id`).all();
+    return json(results || []);
+  }
+  if (path === '/api/bar/manager/equipment' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 160);
+    if (!name) return json({ error: 'Nom du matériel requis.' }, 400);
+    await env.DB.prepare(`INSERT INTO bar_equipment (name, location, photo_key, invoice_key, note, sort) VALUES (?,?,?,?,?,?)`)
+      .bind(name, clean(b.location, 80) || null, clean(b.photo_key, 200) || null, clean(b.invoice_key, 200) || null, clean(b.note, 1000) || null, parseInt(b.sort, 10) || 0).run();
+    return json({ ok: true });
+  }
+  const beqM = path.match(/^\/api\/bar\/manager\/equipment\/(\d+)$/);
+  if (beqM && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 160);
+    if (!name) return json({ error: 'Nom requis.' }, 400);
+    await env.DB.prepare(`UPDATE bar_equipment SET name=?, location=?, note=?, photo_key=COALESCE(?, photo_key), invoice_key=COALESCE(?, invoice_key) WHERE id=?`)
+      .bind(name, clean(b.location, 80) || null, clean(b.note, 1000) || null,
+        b.photo_key === undefined ? null : (clean(b.photo_key, 200) || null),
+        b.invoice_key === undefined ? null : (clean(b.invoice_key, 200) || null), Number(beqM[1])).run();
+    return json({ ok: true });
+  }
+  if (beqM && method === 'DELETE') { await env.DB.prepare(`DELETE FROM bar_equipment WHERE id=?`).bind(Number(beqM[1])).run(); return json({ ok: true }); }
+
+  /* ----- Compte bancaire (Enable Banking) ----- */
+  if (path === '/api/bar/manager/bank' && method === 'GET') {
+    const appId = (await getSetting(env, 'enable_banking_app_id')) || '';
+    const sessionId = (await getSetting(env, 'enable_banking_session')) || '';
+    return json({ configured: !!appId, connected: !!sessionId, app_id: appId });
+  }
+  if (path === '/api/bar/manager/bank/config' && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    await env.DB.prepare(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('enable_banking_app_id', ?, datetime('now'))`).bind(clean(b.app_id, 200)).run();
+    return json({ ok: true });
+  }
+
+  /* ----- Terminal de paiement SumUp ----- */
+  if (path === '/api/bar/manager/sumup' && method === 'GET') {
+    const merchant = (await getSetting(env, 'sumup_merchant')) || '', reader = (await getSetting(env, 'sumup_reader')) || '', token = (await getSetting(env, 'sumup_token')) || '';
+    return json({ configured: !!(merchant && reader && token), merchant, reader, has_token: !!token });
+  }
+  if (path === '/api/bar/manager/sumup/config' && method === 'PUT') {
+    const b = await request.json().catch(() => ({}));
+    await env.DB.prepare(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('sumup_merchant', ?, datetime('now'))`).bind(clean(b.merchant, 60)).run();
+    await env.DB.prepare(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('sumup_reader', ?, datetime('now'))`).bind(clean(b.reader, 120)).run();
+    if (b.token) await env.DB.prepare(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('sumup_token', ?, datetime('now'))`).bind(clean(b.token, 400)).run();
+    return json({ ok: true });
+  }
+  if (path === '/api/bar/manager/sumup/checkout' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const amount = Number(b.amount) || 0;
+    if (amount <= 0) return json({ error: 'Montant invalide.' }, 400);
+    const merchant = await getSetting(env, 'sumup_merchant'), reader = await getSetting(env, 'sumup_reader'), token = await getSetting(env, 'sumup_token');
+    if (!merchant || !reader || !token) return json({ error: 'SumUp non configuré.' }, 400);
+    try {
+      const resp = await fetch(`https://api.sumup.com/v0.1/merchants/${encodeURIComponent(merchant)}/readers/${encodeURIComponent(reader)}/checkout`, {
+        method: 'POST', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ total_amount: { value: Math.round(amount * 100), currency: 'EUR', minor_unit: 2 }, description: clean(b.description, 120) || 'Bar Montety' }),
+      });
+      if (!resp.ok) return json({ error: 'SumUp a refusé la demande (' + resp.status + ').' }, 502);
+      const data = await resp.json().catch(() => ({}));
+      return json({ ok: true, sumup: data });
+    } catch (e) { return json({ error: 'Terminal injoignable : ' + String(e.message || e) }, 502); }
+  }
 
   /* ----- Partenaires du bar ----- */
   if (path === '/api/bar/manager/partners' && method === 'GET') {
@@ -1481,9 +1731,10 @@ async function handleBarManager(request, env, url, method, session) {
     const title = clean(b.title, 200);
     if (!title) return json({ error: 'Titre du projet requis.' }, 400);
     const status = ['idee', 'en_cours', 'termine'].includes(b.status) ? b.status : 'en_cours';
-    await env.DB.prepare(`INSERT INTO bar_projects (title, status, description, document_key, amount) VALUES (?,?,?,?,?)`)
+    await env.DB.prepare(`INSERT INTO bar_projects (title, status, description, document_key, amount, start_date, end_date) VALUES (?,?,?,?,?,?,?)`)
       .bind(title, status, clean(b.description, 2000) || null, clean(b.document_key, 200) || null,
-        (b.amount === '' || b.amount == null) ? null : Number(b.amount)).run();
+        (b.amount === '' || b.amount == null) ? null : Number(b.amount),
+        clean(b.start_date, 20) || null, clean(b.end_date, 20) || null).run();
     return json({ ok: true });
   }
   const projM = path.match(/^\/api\/bar\/manager\/projects\/(\d+)$/);
@@ -1492,8 +1743,9 @@ async function handleBarManager(request, env, url, method, session) {
     const title = clean(b.title, 200);
     if (!title) return json({ error: 'Titre requis.' }, 400);
     const status = ['idee', 'en_cours', 'termine'].includes(b.status) ? b.status : 'en_cours';
-    await env.DB.prepare(`UPDATE bar_projects SET title=?, status=?, description=?, amount=?, document_key=COALESCE(?, document_key) WHERE id=?`)
+    await env.DB.prepare(`UPDATE bar_projects SET title=?, status=?, description=?, amount=?, start_date=?, end_date=?, document_key=COALESCE(?, document_key) WHERE id=?`)
       .bind(title, status, clean(b.description, 2000) || null, (b.amount === '' || b.amount == null) ? null : Number(b.amount),
+        clean(b.start_date, 20) || null, clean(b.end_date, 20) || null,
         b.document_key === undefined ? null : (clean(b.document_key, 200) || null), Number(projM[1])).run();
     return json({ ok: true });
   }
@@ -1520,13 +1772,14 @@ async function handleBarManager(request, env, url, method, session) {
 
   /* ----- Inventaires ----- */
   if (path === '/api/bar/manager/inventory-sheet' && method === 'GET') {
-    const prods = (await env.DB.prepare(`SELECT name, unit, stock FROM bar_products WHERE active=1 ORDER BY sort, id`).all()).results || [];
-    const rows = prods.map(p => `<tr><td>${escapeHtmlMail(p.name)}</td><td>${escapeHtmlMail(p.unit || '')}</td><td style="text-align:center">${p.stock}</td><td style="border:1px solid #999;height:34px;width:90px"></td><td style="border:1px solid #999;width:40px"></td></tr>`).join('');
+    const prods = (await env.DB.prepare(`SELECT name, unit, stock, location, expiry FROM bar_products WHERE active=1 ORDER BY COALESCE(location,'zzz'), sort, id`).all()).results || [];
+    const fmtExp = s => { if (!s) return ''; const d = new Date(s + 'T00:00'); return isNaN(d) ? escapeHtmlMail(s) : d.toLocaleDateString('fr-FR'); };
+    const rows = prods.map(p => `<tr><td>${escapeHtmlMail(p.location || '—')}</td><td>${escapeHtmlMail(p.name)}</td><td>${escapeHtmlMail(p.unit || '')}</td><td style="text-align:center">${fmtExp(p.expiry)}</td><td style="text-align:center">${p.stock}</td><td style="border:1px solid #999;height:34px;width:80px"></td><td style="border:1px solid #999;width:36px"></td></tr>`).join('');
     const page = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Feuille d'inventaire</title>
-      <style>body{font-family:Arial,sans-serif;color:#222;padding:24px}h1{font-size:20px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #999;padding:8px;font-size:14px}th{background:#eee;text-align:left}@media print{.noprint{display:none}}</style></head>
+      <style>body{font-family:Arial,sans-serif;color:#222;padding:24px}h1{font-size:20px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #999;padding:8px;font-size:13px}th{background:#eee;text-align:left}@media print{.noprint{display:none}}</style></head>
       <body><h1>Inventaire du bar — Les Amis de Montety</h1>
       <p>Date : ____ / ____ / ________ &nbsp;&nbsp; Responsable : ______________________</p>
-      <table><thead><tr><th>Produit</th><th>Unité</th><th>Stock théorique</th><th>Compté</th><th>✓</th></tr></thead><tbody>${rows}</tbody></table>
+      <table><thead><tr><th>Lieu</th><th>Produit</th><th>Unité</th><th>Péremption</th><th>Stock théorique</th><th>Compté</th><th>✓</th></tr></thead><tbody>${rows}</tbody></table>
       <p style="margin-top:24px">Observations :</p><div style="border:1px solid #999;height:80px"></div>
       <div class="noprint" style="text-align:center;margin-top:20px"><button onclick="window.print()" style="padding:10px 20px">Imprimer</button></div></body></html>`;
     return new Response(page, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });

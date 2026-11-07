@@ -196,7 +196,9 @@ CREATE TABLE IF NOT EXISTS bar_managers (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
   pass_hash TEXT NOT NULL, pass_salt TEXT NOT NULL, pass_iter INTEGER NOT NULL DEFAULT 100000,
-  active INTEGER NOT NULL DEFAULT 1, created_at TEXT DEFAULT (datetime('now'))
+  active INTEGER NOT NULL DEFAULT 1,
+  treasurer INTEGER NOT NULL DEFAULT 0,  -- droit de trésorier (marquer les achats remboursés)
+  created_at TEXT DEFAULT (datetime('now'))
 );
 -- auth_tokens.account_type ('admin' | 'bar' | 'merchant') généralise les jetons :
 -- admins, bar_managers ET merchants définissent leur mot de passe par lien e-mail
@@ -208,11 +210,54 @@ CREATE TABLE IF NOT EXISTS bar_products (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL, price REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0,
   unit TEXT, sort INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1,
+  location TEXT,                      -- lieu de stockage (Armoire, Frigo cuisine…)
+  expiry TEXT,                        -- date de péremption (YYYY-MM-DD)
+  threshold REAL NOT NULL DEFAULT 0,  -- seuil de réappro (0 = défaut 5)
+  cost REAL,                          -- prix d'achat unitaire
+  category TEXT,                      -- caisse : alcool / soft / sale / sucre
+  created_at TEXT DEFAULT (datetime('now'))
+);
+-- Disponibilités des équipiers (frise : 1 ligne par équipier, 1 case par jour)
+CREATE TABLE IF NOT EXISTS bar_availability (
+  team_id INTEGER NOT NULL,
+  adate TEXT NOT NULL,               -- YYYY-MM-DD
+  PRIMARY KEY (team_id, adate)
+);
+-- Matériel du bar (rangement, photo, facture, observation)
+CREATE TABLE IF NOT EXISTS bar_equipment (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL, location TEXT,
+  photo_key TEXT,                    -- photo du rangement (KV MEDIA)
+  invoice_key TEXT,                  -- facture d'achat (KV MEDIA)
+  note TEXT,                         -- observation
+  sort INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (datetime('now'))
+);
+-- Lieux de stockage du bar
+CREATE TABLE IF NOT EXISTS bar_locations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL, sort INTEGER NOT NULL DEFAULT 0
+);
+-- Équipiers du bar (contacts, RIB pour remboursements)
+CREATE TABLE IF NOT EXISTS bar_team (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL, phone TEXT, email TEXT, rib TEXT, role TEXT,
+  pay_method TEXT,                   -- moyen de remboursement demandé : wero / virement / liquide / autre
+  sort INTEGER NOT NULL DEFAULT 0
+);
+-- Achats effectués par les équipiers, à rembourser
+CREATE TABLE IF NOT EXISTS bar_purchases (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pdate TEXT NOT NULL, designation TEXT NOT NULL, qty REAL, amount REAL NOT NULL DEFAULT 0,
+  buyer TEXT, method TEXT,            -- especes / rib / wero / cheque / autre
+  reimbursed INTEGER NOT NULL DEFAULT 0, reimbursed_at TEXT, note TEXT,
+  receipt_key TEXT,                  -- photo du ticket (KV MEDIA)
   created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS bar_sales (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   sdate TEXT NOT NULL, total REAL NOT NULL DEFAULT 0, note TEXT,
+  method TEXT,                        -- especes / carte / cadeau
+  seller TEXT,                        -- nom du gérant qui a encaissé
   created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS bar_sale_items (
@@ -233,6 +278,7 @@ CREATE TABLE IF NOT EXISTS bar_projects (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'en_cours', -- idee / en_cours / termine
   description TEXT, document_key TEXT, amount REAL,
+  start_date TEXT, end_date TEXT,    -- dates du projet (frise des équipiers)
   created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS bar_tasks (

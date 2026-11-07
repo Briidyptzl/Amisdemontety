@@ -945,6 +945,7 @@ async function drawAccounting() {
       <div class="acc-period">
         <label>Du <input type="date" id="acc-from" value="${ACC_FROM}"></label>
         <label>au <input type="date" id="acc-to" value="${ACC_TO}"></label>
+        <a class="btn btn--accent btn--sm" id="acc-xls" href="/api/admin/accounting/export.xls?from=${ACC_FROM}&to=${ACC_TO}"><span data-lucide="file-spreadsheet"></span> Excel</a>
         <a class="btn btn--ghost btn--sm" href="/api/admin/accounting/export.csv"><span data-lucide="download"></span> CSV</a>
       </div>
     </div>
@@ -1094,27 +1095,45 @@ function accountModal() {
 async function delAccount(id) { if (!confirm('Supprimer ce compte ?')) return; try { await api('/admin/accounting/accounts/' + id, { method: 'DELETE' }); ACC_ACCOUNTS = await api('/admin/accounting/accounts'); toast('Compte supprimé'); drawAccounting(); } catch (ex) { toast(ex.message, true); } }
 
 /* ----------------------------- Bar ----------------------------- */
-let BAR_TAB = 'caisse', BAR_PRODUCTS = [], BAR_CART = {};
-async function renderBar() {
-  const c = $('#dash-content'); c.innerHTML = '<p class="muted">Chargement…</p>';
-  BAR_PRODUCTS = await api('/admin/bar/products');
-  drawBar();
-}
+let BAR_TAB = 'gerants', BAR_PRODUCTS = [], BAR_CART = {};
+async function renderBar() { if (BAR_TAB !== 'gerants' && BAR_TAB !== 'compta') BAR_TAB = 'gerants'; await drawBar(); }
 async function drawBar() {
   const c = $('#dash-content');
   const tab = (v, l) => `<button class="seg-btn ${BAR_TAB === v ? 'is-active' : ''}" data-btab="${v}">${l}</button>`;
-  c.innerHTML = `<div class="acc-toolbar"><div class="seg seg--wrap">${tab('caisse', 'Caisse')}${tab('stock', 'Produits & stock')}${tab('recettes', 'Recettes')}${tab('inventaires', 'Inventaires')}${tab('gerants', 'Gérants')}${tab('vitrine', 'Page publique')}</div>
-    <a class="btn btn--ghost btn--sm" href="bar.html" target="_blank" rel="noopener"><span data-lucide="external-link"></span> Voir la page</a></div>
+  c.innerHTML = `<div class="acc-toolbar"><div class="seg seg--wrap">${tab('gerants', 'Gérants')}${tab('compta', 'Comptabilité')}</div>
+    <a class="btn btn--ghost btn--sm" href="bar-admin.html" target="_blank" rel="noopener"><span data-lucide="external-link"></span> Espace gérant</a></div>
     <div id="bar-body"><p class="muted">Chargement…</p></div>`;
   $$('.seg-btn', c).forEach(b => b.addEventListener('click', () => { BAR_TAB = b.dataset.btab; drawBar(); }));
   icons();
   const body = $('#bar-body');
-  if (BAR_TAB === 'caisse') barCaisse(body);
-  else if (BAR_TAB === 'stock') barStock(body);
-  else if (BAR_TAB === 'recettes') await barRecettes(body);
-  else if (BAR_TAB === 'inventaires') await barInventaires(body);
-  else if (BAR_TAB === 'gerants') await barGerants(body);
-  else await barVitrine(body);
+  if (BAR_TAB === 'compta') await barComptaReadonly(body);
+  else await barGerants(body);
+  icons();
+}
+async function barComptaReadonly(body) {
+  const sales = await api('/admin/bar/sales');
+  const total = sales.reduce((s, x) => s + (Number(x.total) || 0), 0);
+  // Regroupement par mois (YYYY-MM)
+  const byMonth = {};
+  sales.forEach(s => { const m = (s.sdate || '').slice(0, 7); byMonth[m] = (byMonth[m] || 0) + (Number(s.total) || 0); });
+  const months = Object.keys(byMonth).sort().reverse();
+  body.innerHTML = `
+    <div class="panel" style="margin-bottom:20px">
+      <div class="panel-head"><h3>Comptabilité du bar — lecture seule</h3><a class="btn btn--ghost btn--sm" href="#" id="goto-compta"><span data-lucide="calculator"></span> Comptabilité complète</a></div>
+      <div class="panel-body" style="padding:22px">
+        <div class="stat-row" style="display:flex; gap:18px; flex-wrap:wrap; margin-bottom:8px">
+          <div class="stat-card card"><div class="stat-val">${eur(total)}</div><div class="stat-lbl">Total des recettes du bar</div></div>
+          <div class="stat-card card"><div class="stat-val">${sales.length}</div><div class="stat-lbl">Encaissements</div></div>
+        </div>
+        <p class="muted" style="margin:6px 0 0">Les recettes sont saisies par les gérants depuis l'espace tactile et alimentent automatiquement la comptabilité (caisse du bar 531 / recettes du bar 706). Cette vue est en <strong>lecture seule</strong> ; pour passer ou corriger une écriture, utilisez l'onglet <em>Comptabilité</em>.</p>
+      </div>
+    </div>
+    ${months.length ? `<div class="panel" style="margin-bottom:20px"><div class="panel-head"><h3>Par mois</h3></div><div class="panel-body"><table class="table"><thead><tr><th>Mois</th><th>Recettes</th></tr></thead><tbody>${months.map(m => `<tr><td>${esc(m)}</td><td class="cell-title">${eur(byMonth[m])}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+    <div class="panel">
+      <div class="panel-head"><h3>Détail des encaissements (${sales.length})</h3></div>
+      <div class="panel-body">${sales.length ? `<table class="table"><thead><tr><th>Date</th><th>Détail</th><th>Total</th></tr></thead><tbody>${sales.map(s => `<tr><td class="muted">${fmtDate(s.sdate)}</td><td>${s.items.length ? s.items.map(i => esc(i.name) + ' ×' + i.qty).join(', ') : '<span class="muted">montant libre</span>'}${s.note ? `<div class="cell-sub">${esc(s.note)}</div>` : ''}</td><td class="cell-title">${eur(s.total)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state">Aucune recette enregistrée pour le moment.</div>'}</div>
+    </div>`;
+  const g = $('#goto-compta', body); if (g) g.addEventListener('click', (e) => { e.preventDefault(); switchView('accounting'); });
   icons();
 }
 function barCaisse(body) {
@@ -1214,28 +1233,18 @@ async function barInventaires(body) {
     <tbody>${list.map(i => `<tr><td class="cell-title">${fmtDate(i.idate)}</td><td>${esc(i.author || '—')}</td><td class="muted">${esc(i.note || '')}</td><td class="col-actions">${i.filled_key ? `<a class="btn btn--secondary btn--sm" href="/img/${esc(i.filled_key)}" target="_blank" rel="noopener">Voir le scan</a>` : '—'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty-state">Aucun inventaire déposé par les gérants.</div>'}</div></div>`;
   icons();
 }
+let BAR_MANAGERS = [];
 async function barGerants(body) {
   const list = await api('/admin/bar/managers');
+  BAR_MANAGERS = list;
   body.innerHTML = `<div class="panel">
     <div class="panel-head"><h3>Gérants de bar (${list.length})</h3><button class="btn btn--accent btn--sm" id="bg-add"><span data-lucide="user-plus"></span> Inviter un gérant</button></div>
     <div class="panel-body">
-      <p class="muted" style="padding:0 22px">Les gérants accèdent à l'espace tactile <code>…/bar-admin.html</code> (caisse, stock, consignes). Ils choisissent eux-mêmes leur mot de passe via l'e-mail d'invitation.</p>
-      ${list.length ? `<table class="table"><thead><tr><th>Nom</th><th>E-mail</th><th class="col-actions">Actions</th></tr></thead><tbody>${list.map(g => `<tr><td class="cell-title">${esc(g.name)}</td><td class="muted">${esc(g.email)}</td><td class="col-actions"><button class="icon-btn" data-bgreset="${g.id}" title="Envoyer un lien de réinitialisation"><span data-lucide="mail"></span></button><button class="icon-btn danger" data-bgdel="${g.id}" title="Supprimer"><span data-lucide="trash-2"></span></button></td></tr>`).join('')}</tbody></table>` : '<div class="empty-state">Aucun gérant. Cliquez sur « Inviter un gérant ».</div>'}
+      <p class="muted" style="padding:0 22px">Les gérants accèdent à l'espace tactile <code>…/bar-admin.html</code> (caisse, stock, consignes). Ils choisissent eux-mêmes leur mot de passe via l'e-mail d'invitation. Un compte désactivé ne peut plus se connecter.</p>
+      ${list.length ? `<table class="table"><thead><tr><th>Nom</th><th>E-mail</th><th>État</th><th class="col-actions">Actions</th></tr></thead><tbody>${list.map(bgRow).join('')}</tbody></table>` : '<div class="empty-state">Aucun gérant. Cliquez sur « Inviter un gérant ».</div>'}
     </div></div>`;
-  $('#bg-add').addEventListener('click', () => {
-    openModal(`<h3>Inviter un gérant de bar</h3><form id="bg-form">
-      <div class="field"><label>Nom</label><input name="name" required></div>
-      <div class="field"><label>E-mail</label><input name="email" type="email" required></div>
-      <p class="hint">Un e-mail d'invitation sera envoyé. Le gérant choisira son mot de passe — vous ne le verrez pas.</p>
-      <div class="modal-actions"><button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button><button type="submit" class="btn btn--accent btn--md">Inviter</button></div></form>`);
-    $('#modal-cancel').addEventListener('click', closeModal);
-    $('#bg-form').addEventListener('submit', async e => {
-      e.preventDefault(); const f = e.target;
-      try { const r = await api('/admin/bar/managers', { method: 'POST', body: JSON.stringify({ name: f.name.value.trim(), email: f.email.value.trim() }) });
-        closeModal(); if (r.emailed) toast('Invitation envoyée'); else alert("Compte créé mais e-mail non envoyé : " + (r.warning || '')); drawBar();
-      } catch (ex) { toast(ex.message, true); }
-    });
-  });
+  $('#bg-add').addEventListener('click', () => barManagerModal());
+  $$('[data-bgedit]', body).forEach(b => b.addEventListener('click', () => barManagerModal(BAR_MANAGERS.find(g => g.id == b.dataset.bgedit))));
   $$('[data-bgreset]', body).forEach(b => b.addEventListener('click', async () => {
     if (!confirm('Envoyer un lien de réinitialisation à ce gérant ?')) return;
     try { await api('/admin/bar/managers/' + b.dataset.bgreset + '/reset', { method: 'POST', body: '{}' }); toast('Lien envoyé par e-mail'); } catch (ex) { toast(ex.message, true); }
@@ -1245,6 +1254,41 @@ async function barGerants(body) {
     try { await api('/admin/bar/managers/' + b.dataset.bgdel, { method: 'DELETE' }); toast('Gérant supprimé'); drawBar(); } catch (ex) { toast(ex.message, true); }
   }));
   icons();
+}
+function bgRow(g) {
+  return `<tr>
+    <td class="cell-title">${esc(g.name)}</td>
+    <td class="muted">${esc(g.email)}</td>
+    <td>${g.active ? '<span class="badge badge--olive">Actif</span>' : '<span class="badge badge--neutral">Désactivé</span>'}${g.treasurer ? ' <span class="badge badge--ocre" title="Peut valider les remboursements">Trésorier</span>' : ''}</td>
+    <td class="col-actions">
+      <button class="icon-btn" data-bgreset="${g.id}" title="Envoyer un lien de réinitialisation"><span data-lucide="mail"></span></button>
+      <button class="icon-btn" data-bgedit="${g.id}" title="Modifier"><span data-lucide="pencil"></span></button>
+      <button class="icon-btn danger" data-bgdel="${g.id}" title="Supprimer"><span data-lucide="trash-2"></span></button>
+    </td></tr>`;
+}
+function barManagerModal(g) {
+  const e = g || {};
+  openModal(`<h3>${g ? 'Modifier le gérant' : 'Inviter un gérant de bar'}</h3><form id="bg-form">
+    <div class="field"><label>Nom</label><input name="name" value="${esc(e.name || '')}" required></div>
+    <div class="field"><label>E-mail</label><input name="email" type="email" value="${esc(e.email || '')}" required></div>
+    ${g ? `<label style="display:flex; align-items:center; gap:8px; margin:4px 0 0"><input type="checkbox" name="active" ${e.active ? 'checked' : ''} style="width:auto" /> Compte actif</label>
+          <label style="display:flex; align-items:center; gap:8px; margin:8px 0 0"><input type="checkbox" name="treasurer" ${e.treasurer ? 'checked' : ''} style="width:auto" /> Droit de trésorier <span class="hint" style="margin:0">(peut valider les remboursements)</span></label>`
+        : `<p class="hint">Un e-mail d'invitation sera envoyé. Le gérant choisira son mot de passe — vous ne le verrez pas.</p>`}
+    <div class="modal-actions"><button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button><button type="submit" class="btn btn--accent btn--md">${g ? 'Enregistrer' : 'Inviter'}</button></div></form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#bg-form').addEventListener('submit', async ev => {
+    ev.preventDefault(); const f = ev.target;
+    try {
+      if (g) {
+        await api('/admin/bar/managers/' + g.id, { method: 'PUT', body: JSON.stringify({
+          name: f.name.value.trim(), email: f.email.value.trim(), active: f.active.checked ? 1 : 0, treasurer: f.treasurer.checked ? 1 : 0 }) });
+        closeModal(); toast('Gérant enregistré'); drawBar();
+      } else {
+        const r = await api('/admin/bar/managers', { method: 'POST', body: JSON.stringify({ name: f.name.value.trim(), email: f.email.value.trim() }) });
+        closeModal(); if (r.emailed) toast('Invitation envoyée'); else alert("Compte créé mais e-mail non envoyé : " + (r.warning || '')); drawBar();
+      }
+    } catch (ex) { toast(ex.message, true); }
+  });
 }
 
 /* ----------------------------- Lieu de vie (devis) ----------------------------- */
