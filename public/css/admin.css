@@ -280,4 +280,11 @@
   .table th, .table td { padding: 10px 12px; font-size: 0.9rem; }
   .acc-toolbar { gap: 10px; }
   .col-actions { white-space: nowrap; }
+  /* Messages : la ligne d'en-tête s'empile au lieu de défiler horizontalement */
+  .msg-head { flex-wrap: wrap; row-gap: 8px; }
+  .msg-head .who { flex: 1 1 auto; min-width: 0; }
+  .msg-head > button { order: 1; margin-left: auto; }
+  .msg-head .muted { order: 2; flex: 1 1 100%; }
+  .msg-head .badge { order: 2; }
+  .msg-head .when { order: 2; margin-left: auto; }
 }
