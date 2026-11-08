@@ -582,11 +582,14 @@ function purchaseModal(p) {
 
 /* ----- Équipiers : répertoire + frise de disponibilités ----- */
 const WD_ABBR = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
-function addDays(iso, n) { const d = new Date(iso + 'T00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+function isoLocal(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+// On reste en heure locale : toISOString() repasserait en UTC et décalerait d'un jour (fuseau France → le mois démarrerait le 31 du mois précédent).
+function addDays(iso, n) { const d = new Date(iso + 'T00:00'); d.setDate(d.getDate() + n); return isoLocal(d); }
+function todayLocal() { return isoLocal(new Date()); }
 function monthStart(iso) { return iso.slice(0, 7) + '-01'; }
 function daysInMonth(iso) { const [y, m] = iso.split('-').map(Number); return new Date(y, m, 0).getDate(); }
 function addMonths(iso, n) { const [y, m] = iso.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-01'; }
-let AVAIL_START = monthStart(new Date().toISOString().slice(0, 10));
+let AVAIL_START = monthStart(todayLocal());
 const PAY_PREF_LBL = { wero: 'Wero', virement: 'Virement', liquide: 'Liquide', autre: 'Autre' };
 function eqRow(t) {
   const meta = [];
@@ -603,7 +606,7 @@ async function renderEquipiers() {
   const from = AVAIL_START, ndays = daysInMonth(from), to = addDays(from, ndays - 1);
   const [list, avail, projects] = await Promise.all([api('/bar/manager/team'), api('/bar/manager/availability?from=' + from + '&to=' + to), api('/bar/manager/projects')]);
   const aset = new Set(avail.map(a => a.team_id + '|' + a.adate));
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocal();
   const cols = []; for (let i = 0; i < ndays; i++) { const d = addDays(from, i); const wd = new Date(d + 'T00:00').getDay(); cols.push({ d, wd, we: wd === 0 || wd === 6 }); }
   const headCells = cols.map(col => `<th class="${col.we ? 'we' : ''} ${col.d === today ? 'is-today' : ''}"><span class="fr-wd">${WD_ABBR[col.wd]}</span><span class="fr-dn">${Number(col.d.slice(8, 10))}</span></th>`).join('');
   const bodyRows = list.map(t => `<tr><th class="fr-name">${esc(t.name)}<button class="fr-we" data-weekend="${t.id}" title="Marquer les week-ends dispo">WE</button></th>${cols.map(col => `<td class="${col.we ? 'we' : ''}"><button class="fr-cell ${aset.has(t.id + '|' + col.d) ? 'on' : ''}" data-av="${t.id}|${col.d}"></button></td>`).join('')}</tr>`).join('');

@@ -133,7 +133,12 @@ button.alert-chip.on { border-color: currentColor; box-shadow: var(--shadow-xs);
 .stock-item.is-paid { opacity: .72; }
 
 /* Frise de disponibilités */
-.frise-wrap { overflow-x: auto; margin-top: 10px; -webkit-overflow-scrolling: touch; }
+.frise-wrap { overflow-x: auto; margin-top: 10px; -webkit-overflow-scrolling: touch; padding-bottom: 6px; scrollbar-width: auto; scrollbar-color: var(--brique-400, #c47a5f) var(--creme-200); }
+/* Glissoire horizontale toujours visible pour faire défiler les jours */
+.frise-wrap::-webkit-scrollbar { height: 12px; }
+.frise-wrap::-webkit-scrollbar-track { background: var(--creme-200); border-radius: 6px; }
+.frise-wrap::-webkit-scrollbar-thumb { background: var(--brique-400, #c47a5f); border-radius: 6px; border: 2px solid var(--creme-200); }
+.frise-wrap::-webkit-scrollbar-thumb:hover { background: var(--brique-500, #b06a50); }
 .frise { border-collapse: collapse; }
 .frise th, .frise td { border: 1px solid var(--color-border); padding: 0; text-align: center; }
 .frise thead th { background: var(--creme-100); font-size: .8rem; padding: 4px 2px; min-width: 34px; }
