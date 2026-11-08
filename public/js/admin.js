@@ -561,30 +561,70 @@ async function renderMessages() {
         ${list.length ? list.map(msgItem).join('') : `<div class="empty-state">Aucun message.</div>`}
       </div>
     </div>`;
-  $$('.msg-head', c).forEach(h => h.addEventListener('click', () => {
+  $$('.msg-head', c).forEach(h => h.addEventListener('click', e => {
+    if (e.target.closest('button')) return;
     const item = h.closest('.msg-item');
     const body = $('.msg-body', item);
     body.hidden = !body.hidden;
-    if (item.classList.contains('unread')) markRead(item.dataset.id, true, item);
+    if (!body.hidden && item.classList.contains('unread')) markRead(item.dataset.id, true, item);
   }));
   $$('[data-delmsg]', c).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); delMsg(b.dataset.delmsg); }));
+  $$('[data-reply]', c).forEach(b => b.addEventListener('click', () => replyModal(list.find(m => m.id == b.dataset.reply))));
+  $$('[data-forward]', c).forEach(b => b.addEventListener('click', () => forwardModal(list.find(m => m.id == b.dataset.forward))));
+  $$('[data-unread]', c).forEach(b => b.addEventListener('click', async () => { try { await api('/admin/messages/' + b.dataset.unread, { method: 'PATCH', body: JSON.stringify({ read: 0 }) }); renderMessages(); } catch (ex) { toast(ex.message, true); } }));
   icons();
   refreshBadges();
 }
 function msgItem(m) {
+  const badges = `${m.has_reply ? '<span class="badge badge--olive">Répondu</span>' : ''}${m.has_forward ? '<span class="badge badge--ardoise">Transféré</span>' : ''}`;
+  const thread = (m.replies || []).map(r => `<div class="msg-reply">
+      <div class="msg-reply-head">${r.kind === 'forward' ? '→ Transféré à ' + esc(r.to_email) : '↩ Réponse à ' + esc(r.to_email || '')} · <b>${esc(r.author || '')}</b> · ${fmtDateTime(r.created_at)}</div>
+      ${r.body ? `<div class="msg-reply-body">${esc(r.body).replace(/\r?\n/g, '<br>')}</div>` : '<div class="msg-reply-body muted">(sans note)</div>'}</div>`).join('');
   return `<div class="msg-item ${m.read ? '' : 'unread'}" data-id="${m.id}">
     <div class="msg-head">
       <span data-lucide="${m.read ? 'mail-open' : 'mail'}"></span>
       <span class="who">${esc(m.name)}</span>
       <span class="muted" style="font-size:.88rem">${esc(m.subject || '(sans sujet)')}</span>
+      ${badges}
       <span class="when">${fmtDateTime(m.created_at)}</span>
       <button class="icon-btn danger" data-delmsg="${m.id}" title="Supprimer"><span data-lucide="trash-2"></span></button>
     </div>
     <div class="msg-body" hidden>
-      ${esc(m.message)}
-      <div class="msg-meta"><a href="mailto:${esc(m.email)}?subject=Re: ${esc(m.subject || '')}">Répondre à ${esc(m.email)}</a></div>
+      <div class="msg-text">${esc(m.message)}</div>
+      <div class="msg-from muted">De ${esc(m.name)} &lt;${esc(m.email)}&gt;</div>
+      ${thread ? `<div class="msg-thread">${thread}</div>` : ''}
+      <div class="msg-actions">
+        <button class="btn btn--accent btn--sm" data-reply="${m.id}"><span data-lucide="reply"></span> Répondre</button>
+        <button class="btn btn--secondary btn--sm" data-forward="${m.id}"><span data-lucide="forward"></span> Transférer</button>
+        <button class="btn btn--ghost btn--sm" data-unread="${m.id}"><span data-lucide="mail"></span> Marquer non lu</button>
+      </div>
     </div>
   </div>`;
+}
+function replyModal(m) {
+  openModal(`<h3>Répondre à ${esc(m.name)}</h3>
+    <p class="hint">Un e-mail sera envoyé à <b>${esc(m.email)}</b>. La réponse apparaîtra dans le fil, visible par tous les administrateurs.</p>
+    <form id="reply-form"><div class="field"><label>Votre réponse</label><textarea name="body" rows="6" required></textarea></div>
+    <div class="modal-actions"><button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button><button type="submit" class="btn btn--accent btn--md">Envoyer</button></div></form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#reply-form').addEventListener('submit', async ev => {
+    ev.preventDefault(); const btn = ev.target.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Envoi…';
+    try { await api('/admin/messages/' + m.id + '/reply', { method: 'POST', body: JSON.stringify({ body: ev.target.body.value }) }); closeModal(); toast('Réponse envoyée'); renderMessages(); }
+    catch (ex) { toast(ex.message, true); btn.disabled = false; btn.textContent = 'Envoyer'; }
+  });
+}
+function forwardModal(m) {
+  openModal(`<h3>Transférer le message</h3>
+    <p class="hint">Le message de <b>${esc(m.name)}</b> sera transféré par e-mail. Le transfert apparaîtra dans le fil.</p>
+    <form id="fwd-form"><div class="field"><label>Transférer à (e-mail)</label><input name="to" type="email" required placeholder="destinataire@exemple.fr"></div>
+    <div class="field"><label>Note (facultatif)</label><textarea name="note" rows="3"></textarea></div>
+    <div class="modal-actions"><button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button><button type="submit" class="btn btn--accent btn--md">Transférer</button></div></form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  $('#fwd-form').addEventListener('submit', async ev => {
+    ev.preventDefault(); const btn = ev.target.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Envoi…';
+    try { await api('/admin/messages/' + m.id + '/forward', { method: 'POST', body: JSON.stringify({ to: ev.target.to.value.trim(), note: ev.target.note.value.trim() }) }); closeModal(); toast('Message transféré'); renderMessages(); }
+    catch (ex) { toast(ex.message, true); btn.disabled = false; btn.textContent = 'Transférer'; }
+  });
 }
 async function markRead(id, read, item) {
   try { await api('/admin/messages/' + id, { method: 'PATCH', body: JSON.stringify({ read: read ? 1 : 0 }) });
@@ -1579,6 +1619,7 @@ async function renderSettings() {
           <div class="field"><label>Lien HelloAsso — Adhésion</label><input name="helloasso_membership_url" type="url" value="${esc(s.helloasso_membership_url || '')}" placeholder="https://www.helloasso.com/associations/.../adhesions/..." /></div>
           <div class="field"><label>Lien HelloAsso — Don</label><input name="helloasso_donation_url" type="url" value="${esc(s.helloasso_donation_url || '')}" placeholder="https://www.helloasso.com/associations/.../formulaires/..." /></div>
           <div class="field"><label>E-mail de contact public</label><input name="contact_email" type="email" value="${esc(s.contact_email || '')}" /></div>
+          <div class="field"><label>Montant de l'adhésion annuelle (€)</label><input name="cotisation_amount" type="number" step="0.01" min="0" value="${esc(s.cotisation_amount || '20')}" /><div class="hint">Utilisé par le bouton « Adhésion annuelle » de la caisse du bar.</div></div>
           <button class="btn btn--accent btn--md" type="submit">Enregistrer</button>
         </form>
       </div>

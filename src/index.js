@@ -502,7 +502,7 @@ async function handleAdmin(request, env, url, method, session) {
   // Statistiques du tableau de bord
   if (path === '/api/admin/stats' && method === 'GET') {
     const pending = await env.DB.prepare(`SELECT COUNT(*) AS n FROM memberships WHERE status='pending'`).first();
-    const unread = await env.DB.prepare(`SELECT COUNT(*) AS n FROM contact_messages WHERE read=0`).first();
+    const unread = await env.DB.prepare(`SELECT COUNT(*) AS n FROM contact_messages m WHERE NOT EXISTS (SELECT 1 FROM message_reads r WHERE r.message_id=m.id AND lower(r.reader)=?)`).bind(session.email.toLowerCase()).first();
     const upcoming = await env.DB.prepare(`SELECT COUNT(*) AS n FROM events WHERE published=1`).first();
     const donTotal = await env.DB.prepare(`SELECT COALESCE(SUM(amount),0) AS s, COUNT(*) AS n FROM donations`).first();
     const membersOk = await env.DB.prepare(`SELECT COUNT(*) AS n FROM memberships WHERE status='accepted'`).first();
@@ -514,7 +514,7 @@ async function handleAdmin(request, env, url, method, session) {
 
   // Paramètres (liens HelloAsso, e-mail de contact)
   if (path === '/api/admin/settings' && method === 'GET') {
-    const rows = await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE 'helloasso_%' OR key IN ('contact_email','mail_from','resend_api_key','plan_lieu_key','bar_description','bar_hours')`).all();
+    const rows = await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE 'helloasso_%' OR key IN ('contact_email','mail_from','resend_api_key','plan_lieu_key','bar_description','bar_hours','cotisation_amount')`).all();
     const cfg = {};
     (rows.results || []).forEach(r => { cfg[r.key] = r.value; });
     cfg.resend_configured = !!cfg.resend_api_key;
@@ -523,7 +523,7 @@ async function handleAdmin(request, env, url, method, session) {
   }
   if (path === '/api/admin/settings' && method === 'PUT') {
     const b = await request.json().catch(() => ({}));
-    const allowed = ['helloasso_membership_url', 'helloasso_donation_url', 'contact_email', 'mail_from', 'resend_api_key', 'plan_lieu_key', 'bar_description', 'bar_hours'];
+    const allowed = ['helloasso_membership_url', 'helloasso_donation_url', 'contact_email', 'mail_from', 'resend_api_key', 'plan_lieu_key', 'bar_description', 'bar_hours', 'cotisation_amount'];
     for (const k of allowed) {
       if (k in b) {
         await env.DB.prepare(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?,?,datetime('now'))`)
@@ -624,17 +624,63 @@ async function handleAdmin(request, env, url, method, session) {
 
   /* ----- Messages ----- */
   if (path === '/api/admin/messages' && method === 'GET') {
-    const { results } = await env.DB.prepare(`SELECT * FROM contact_messages ORDER BY created_at DESC, id DESC`).all();
-    return json(results || []);
+    const me = session.email.toLowerCase();
+    const msgs = (await env.DB.prepare(`SELECT * FROM contact_messages ORDER BY created_at DESC, id DESC`).all()).results || [];
+    const reads = (await env.DB.prepare(`SELECT message_id FROM message_reads WHERE lower(reader)=?`).bind(me).all()).results || [];
+    const readSet = new Set(reads.map(r => r.message_id));
+    const replies = (await env.DB.prepare(`SELECT id, message_id, author, kind, to_email, body, created_at FROM message_replies ORDER BY created_at, id`).all()).results || [];
+    const byMsg = {}; replies.forEach(r => { (byMsg[r.message_id] = byMsg[r.message_id] || []).push(r); });
+    msgs.forEach(m => { m.read = readSet.has(m.id) ? 1 : 0; m.replies = byMsg[m.id] || []; m.has_reply = m.replies.some(r => r.kind === 'reply'); m.has_forward = m.replies.some(r => r.kind === 'forward'); });
+    return json(msgs);
   }
   const msgMatch = path.match(/^\/api\/admin\/messages\/(\d+)$/);
   if (msgMatch && method === 'PATCH') {
     const b = await request.json().catch(() => ({}));
-    await env.DB.prepare(`UPDATE contact_messages SET read=? WHERE id=?`).bind(b.read ? 1 : 0, Number(msgMatch[1])).run();
+    const id = Number(msgMatch[1]), me = session.email.toLowerCase();
+    if (b.read) await env.DB.prepare(`INSERT OR IGNORE INTO message_reads (message_id, reader) VALUES (?,?)`).bind(id, me).run();
+    else await env.DB.prepare(`DELETE FROM message_reads WHERE message_id=? AND lower(reader)=?`).bind(id, me).run();
+    return json({ ok: true });
+  }
+  // Répondre à l'expéditeur (envoi e-mail + fil de discussion)
+  const msgReply = path.match(/^\/api\/admin\/messages\/(\d+)\/reply$/);
+  if (msgReply && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const id = Number(msgReply[1]);
+    const m = await env.DB.prepare(`SELECT * FROM contact_messages WHERE id=?`).bind(id).first();
+    if (!m) return json({ error: 'Message introuvable.' }, 404);
+    const body = clean(b.body, 5000);
+    if (!body) return json({ error: 'Réponse vide.' }, 400);
+    if (!isValidEmail(m.email)) return json({ error: "L'expéditeur n'a pas d'e-mail valide." }, 400);
+    try {
+      await sendMail(env, m.email, 'Re: ' + (m.subject || 'votre message'),
+        wrapMail(`<p>Bonjour ${escapeHtmlMail(m.name)},</p><p>${escapeHtmlMail(body).replace(/\r?\n/g, '<br>')}</p><hr style="border:none;border-top:1px solid #ddd"><p style="color:#8899a6;font-size:12px">En réponse à votre message&nbsp;: «&nbsp;${escapeHtmlMail((m.message || '').slice(0, 300))}&nbsp;»</p>`));
+    } catch (e) { return json({ error: 'Envoi refusé : ' + String(e.message || e) }, 502); }
+    await env.DB.prepare(`INSERT INTO message_replies (message_id, author, kind, to_email, body) VALUES (?,?,?,?,?)`).bind(id, session.name || session.email, 'reply', m.email, body).run();
+    await env.DB.prepare(`INSERT OR IGNORE INTO message_reads (message_id, reader) VALUES (?,?)`).bind(id, session.email.toLowerCase()).run();
+    return json({ ok: true });
+  }
+  // Transférer vers une autre adresse (envoi e-mail + fil)
+  const msgFwd = path.match(/^\/api\/admin\/messages\/(\d+)\/forward$/);
+  if (msgFwd && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const id = Number(msgFwd[1]);
+    const m = await env.DB.prepare(`SELECT * FROM contact_messages WHERE id=?`).bind(id).first();
+    if (!m) return json({ error: 'Message introuvable.' }, 404);
+    const to = clean(b.to, 254).toLowerCase(), note = clean(b.note, 2000);
+    if (!isValidEmail(to)) return json({ error: 'Adresse de transfert invalide.' }, 400);
+    try {
+      await sendMail(env, to, 'Transfert : ' + (m.subject || 'message de contact'),
+        wrapMail(`${note ? `<p>${escapeHtmlMail(note).replace(/\r?\n/g, '<br>')}</p><hr style="border:none;border-top:1px solid #ddd">` : ''}<p><b>Message de ${escapeHtmlMail(m.name)}</b> (${escapeHtmlMail(m.email)})${m.subject ? ' — ' + escapeHtmlMail(m.subject) : ''}</p><p>${escapeHtmlMail(m.message).replace(/\r?\n/g, '<br>')}</p>`));
+    } catch (e) { return json({ error: 'Envoi refusé : ' + String(e.message || e) }, 502); }
+    await env.DB.prepare(`INSERT INTO message_replies (message_id, author, kind, to_email, body) VALUES (?,?,?,?,?)`).bind(id, session.name || session.email, 'forward', to, note || null).run();
+    await env.DB.prepare(`INSERT OR IGNORE INTO message_reads (message_id, reader) VALUES (?,?)`).bind(id, session.email.toLowerCase()).run();
     return json({ ok: true });
   }
   if (msgMatch && method === 'DELETE') {
-    await env.DB.prepare(`DELETE FROM contact_messages WHERE id=?`).bind(Number(msgMatch[1])).run();
+    const id = Number(msgMatch[1]);
+    await env.DB.prepare(`DELETE FROM message_reads WHERE message_id=?`).bind(id).run();
+    await env.DB.prepare(`DELETE FROM message_replies WHERE message_id=?`).bind(id).run();
+    await env.DB.prepare(`DELETE FROM contact_messages WHERE id=?`).bind(id).run();
     return json({ ok: true });
   }
 
@@ -1400,6 +1446,13 @@ async function recordBarSale(env, b) {
     if (!p) continue;
     total += p.price * qty; lines.push({ product_id: pid, name: p.name, qty, unit_price: p.price });
   }
+  // Articles personnalisés (ex. articles de projet/événement) : pas de stock, nom + prix libres
+  const custom = Array.isArray(b.custom) ? b.custom : [];
+  for (const it of custom) {
+    const qty = Number(it.qty) || 0, price = Number(it.price) || 0, nm = clean(it.name, 120);
+    if (!nm || qty <= 0) continue;
+    total += price * qty; lines.push({ product_id: null, name: nm, qty, unit_price: price });
+  }
   if (lines.length === 0) { const fa = Number(b.free_amount) || 0; if (fa > 0) total = fa; }
   total = Math.round(total * 100) / 100;
   const method = ['especes', 'carte', 'cadeau'].includes(b.method) ? b.method : 'especes';
@@ -1438,6 +1491,7 @@ async function handleBarManager(request, env, url, method, session) {
   const isTreasurer = async () => { const m = await env.DB.prepare(`SELECT treasurer FROM bar_managers WHERE id=?`).bind(mid).first(); return !!(m && m.treasurer); };
   if (path === '/api/bar/manager/me' && method === 'GET') {
     const m = await env.DB.prepare(`SELECT id, name, email, treasurer FROM bar_managers WHERE id=?`).bind(mid).first();
+    if (m) { m.cotisation_amount = Number(await getSetting(env, 'cotisation_amount')) || 20; }
     return m ? json(m) : json({ error: 'Compte introuvable' }, 404);
   }
   if (path === '/api/bar/manager/consignes' && method === 'GET') return json({ consignes: (await getSetting(env, 'bar_consignes')) || '' });
@@ -1500,6 +1554,46 @@ async function handleBarManager(request, env, url, method, session) {
     const r = await recordBarSale(env, body);
     return r.error ? json({ error: r.error }, 400) : json(r);
   }
+  // Liste des membres de l'association (pour saisie auto à la caisse)
+  if (path === '/api/bar/manager/members' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT id, prenom, nom, email, mtype FROM memberships ORDER BY nom, prenom`).all();
+    return json(results || []);
+  }
+  // Encaisser une adhésion depuis la caisse (annuelle ou libre ≥ 20 €) → alimente la compta (cotisation 756)
+  if (path === '/api/bar/manager/membership' && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    let prenom = clean(b.prenom, 120), nom = clean(b.nom, 120), email = clean(b.email, 254);
+    const amount = Number(b.amount) || 0;
+    if (amount < 20) return json({ error: 'Le montant d\'une adhésion doit être d\'au moins 20 €.' }, 400);
+    const pm = b.method === 'carte' ? 'cb' : 'especes';
+    const today = new Date().toISOString().slice(0, 10);
+    const memberId = parseInt(b.member_id, 10);
+    let id;
+    if (memberId) {
+      // Renouvellement d'un membre existant : on met à jour son paiement
+      const ex = await env.DB.prepare(`SELECT id, prenom, nom, email FROM memberships WHERE id=?`).bind(memberId).first();
+      if (!ex) return json({ error: 'Membre introuvable.' }, 404);
+      // Le formulaire peut ne renvoyer que l'id : on complète depuis la fiche existante
+      if (!prenom) prenom = ex.prenom;
+      if (!nom) nom = ex.nom;
+      if (!email) email = ex.email || '';
+      await env.DB.prepare(`UPDATE memberships SET prenom=?, nom=?, email=COALESCE(?,email), status='accepted', amount=?, pay_method=?, pay_status='encaisse', paid=1, paid_at=? WHERE id=?`)
+        .bind(prenom, nom, email || null, amount, pm, today, memberId).run();
+      id = memberId;
+    } else {
+      if (!prenom || !nom) return json({ error: 'Prénom et nom requis.' }, 400);
+      const mtype = (b.mtype === 'bienfaiteur' || b.mtype === 'honneur') ? b.mtype : 'adherent';
+      const r = await env.DB.prepare(
+        `INSERT INTO memberships (prenom, nom, email, mtype, status, amount, pay_method, pay_status, paid, paid_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`)
+        .bind(prenom, nom, email || null, mtype, 'accepted', amount, pm, 'encaisse', 1, today).run();
+      id = r.meta.last_row_id;
+      // Nouvelle adhésion : même accusé de réception que depuis le site
+      if (email && isValidEmail(email)) { try { await sendTemplatedMail(env, email, 'membership_welcome', { name: escapeHtmlMail(prenom) }, 'Bienvenue chez Les Amis de Montety'); } catch (_) {} }
+    }
+    await syncMembershipEntry(env, id);
+    return json({ ok: true, id, amount, renewed: !!memberId });
+  }
   const bsmM = path.match(/^\/api\/bar\/manager\/sales\/(\d+)$/);
   if (bsmM && method === 'DELETE') { await deleteBarSale(env, Number(bsmM[1])); return json({ ok: true }); }
 
@@ -1522,8 +1616,16 @@ async function handleBarManager(request, env, url, method, session) {
 
   /* ----- Équipiers du bar ----- */
   if (path === '/api/bar/manager/team' && method === 'GET') {
-    const { results } = await env.DB.prepare(`SELECT * FROM bar_team ORDER BY sort, name`).all();
-    return json(results || []);
+    // Les gérants (accès à l'espace bar) figurent d'office dans le répertoire des équipiers
+    const managers = (await env.DB.prepare(`SELECT id, name, email FROM bar_managers WHERE active=1`).all()).results || [];
+    const linked = new Set(((await env.DB.prepare(`SELECT manager_id FROM bar_team WHERE manager_id IS NOT NULL`).all()).results || []).map(r => r.manager_id));
+    for (const mg of managers) {
+      if (!linked.has(mg.id)) {
+        await env.DB.prepare(`INSERT INTO bar_team (name, email, role, manager_id) VALUES (?,?,?,?)`).bind(mg.name, mg.email, 'Gérant', mg.id).run();
+      }
+    }
+    const { results } = await env.DB.prepare(`SELECT * FROM bar_team ORDER BY (manager_id IS NULL), sort, name`).all();
+    return json((results || []).map(t => ({ ...t, is_manager: t.manager_id != null })));
   }
   if (path === '/api/bar/manager/team' && method === 'POST') {
     const b = await request.json().catch(() => ({}));
@@ -1723,10 +1825,24 @@ async function handleBarManager(request, env, url, method, session) {
   if (path === '/api/bar/manager/projects' && method === 'GET') {
     const projects = (await env.DB.prepare(`SELECT * FROM bar_projects ORDER BY created_at DESC, id DESC`).all()).results || [];
     const tasks = (await env.DB.prepare(`SELECT * FROM bar_tasks ORDER BY sort, id`).all()).results || [];
+    const items = (await env.DB.prepare(`SELECT * FROM bar_project_items ORDER BY sort, id`).all()).results || [];
     const by = {}; tasks.forEach(t => { (by[t.project_id] = by[t.project_id] || []).push(t); });
-    projects.forEach(p => { p.tasks = by[p.id] || []; });
+    const bi = {}; items.forEach(i => { (bi[i.project_id] = bi[i.project_id] || []).push(i); });
+    projects.forEach(p => { p.tasks = by[p.id] || []; p.items = bi[p.id] || []; });
     return json(projects);
   }
+  // Articles de caisse d'un projet
+  const projItemsM = path.match(/^\/api\/bar\/manager\/projects\/(\d+)\/items$/);
+  if (projItemsM && method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const name = clean(b.name, 120);
+    if (!name) return json({ error: 'Nom de l\'article requis.' }, 400);
+    await env.DB.prepare(`INSERT INTO bar_project_items (project_id, name, price, sort) VALUES (?,?,?,?)`)
+      .bind(Number(projItemsM[1]), name, Number(b.price) || 0, parseInt(b.sort, 10) || 0).run();
+    return json({ ok: true });
+  }
+  const projItemDel = path.match(/^\/api\/bar\/manager\/project-items\/(\d+)$/);
+  if (projItemDel && method === 'DELETE') { await env.DB.prepare(`DELETE FROM bar_project_items WHERE id=?`).bind(Number(projItemDel[1])).run(); return json({ ok: true }); }
   if (path === '/api/bar/manager/projects' && method === 'POST') {
     const b = await request.json().catch(() => ({}));
     const title = clean(b.title, 200);
@@ -1752,6 +1868,7 @@ async function handleBarManager(request, env, url, method, session) {
   }
   if (projM && method === 'DELETE') {
     await env.DB.prepare(`DELETE FROM bar_tasks WHERE project_id=?`).bind(Number(projM[1])).run();
+    await env.DB.prepare(`DELETE FROM bar_project_items WHERE project_id=?`).bind(Number(projM[1])).run();
     await env.DB.prepare(`DELETE FROM bar_projects WHERE id=?`).bind(Number(projM[1])).run();
     return json({ ok: true });
   }

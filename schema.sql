@@ -26,8 +26,19 @@ CREATE TABLE IF NOT EXISTS contact_messages (
   email      TEXT NOT NULL,
   subject    TEXT,
   message    TEXT NOT NULL,
-  read       INTEGER NOT NULL DEFAULT 0,
+  read       INTEGER NOT NULL DEFAULT 0,  -- obsolète : le statut lu est désormais par administrateur
   created_at TEXT DEFAULT (datetime('now'))
+);
+-- Statut « lu » par administrateur (chaque admin a son propre lu/non-lu)
+CREATE TABLE IF NOT EXISTS message_reads (
+  message_id INTEGER NOT NULL, reader TEXT NOT NULL,  -- reader = e-mail de l'admin
+  PRIMARY KEY (message_id, reader)
+);
+-- Réponses et transferts (fil de discussion, visible par tous les admins)
+CREATE TABLE IF NOT EXISTS message_replies (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  message_id INTEGER NOT NULL, author TEXT, kind TEXT NOT NULL,  -- reply / forward
+  to_email TEXT, body TEXT, created_at TEXT DEFAULT (datetime('now'))
 );
 
 -- Demandes d'adhésion (le paiement éventuel passe par HelloAsso)
@@ -242,6 +253,7 @@ CREATE TABLE IF NOT EXISTS bar_team (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL, phone TEXT, email TEXT, rib TEXT, role TEXT,
   pay_method TEXT,                   -- moyen de remboursement demandé : wero / virement / liquide / autre
+  manager_id INTEGER,                -- si renseigné : équipier lié à un compte gérant (accès espace bar)
   sort INTEGER NOT NULL DEFAULT 0
 );
 -- Achats effectués par les équipiers, à rembourser
@@ -280,6 +292,12 @@ CREATE TABLE IF NOT EXISTS bar_projects (
   description TEXT, document_key TEXT, amount REAL,
   start_date TEXT, end_date TEXT,    -- dates du projet (frise des équipiers)
   created_at TEXT DEFAULT (datetime('now'))
+);
+-- Articles vendus en caisse, spécifiques à un projet/événement (repas, boisson…)
+CREATE TABLE IF NOT EXISTS bar_project_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL, name TEXT NOT NULL, price REAL NOT NULL DEFAULT 0,
+  sort INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS bar_tasks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

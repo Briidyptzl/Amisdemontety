@@ -93,30 +93,58 @@ async function renderBoard() {
 
 /* ----- Caisse (tactile) ----- */
 const CAISSE_CATS = { tous: 'Tout', alcool: 'Alcool', soft: 'Soft', sale: 'Salé', sucre: 'Sucré' };
-let CAT_FILTER = 'tous', SUMUP = { configured: false };
+let CAT_FILTER = 'tous', SUMUP = { configured: false }, CAISSE_PROJECTS = [];
 async function renderCaisse() {
   const c = $('#bara-content'); c.innerHTML = '<p class="muted">Chargement…</p>';
   PRODUCTS = await api('/bar/manager/products');
   try { SUMUP = await api('/bar/manager/sumup'); } catch (_) { SUMUP = { configured: false }; }
+  try { CAISSE_PROJECTS = (await api('/bar/manager/projects')).filter(p => (p.items || []).length); } catch (_) { CAISSE_PROJECTS = []; }
   drawCaisse();
 }
+// Catalogue indexé par clé composite : "p:<id>" (produit) ou "i:<id>" (article de projet)
+function buildCatalog() {
+  const cat = {};
+  PRODUCTS.forEach(p => { cat['p:' + p.id] = { name: p.name, price: p.price, kind: 'p', refId: p.id }; });
+  CAISSE_PROJECTS.forEach(pr => (pr.items || []).forEach(it => { cat['i:' + it.id] = { name: it.name, price: it.price, kind: 'i', refId: it.id }; }));
+  return cat;
+}
+function caisseCartTotal(CATALOG) { return Object.entries(CART).filter(([k, q]) => q > 0).reduce((s, [k, q]) => { const it = CATALOG[k]; return s + (it ? it.price * q : 0); }, 0); }
 function drawCaisse() {
   const c = $('#bara-content');
-  let active = PRODUCTS.filter(p => p.active);
-  if (CAT_FILTER !== 'tous') active = active.filter(p => (p.category || '') === CAT_FILTER);
-  const cart = Object.entries(CART).filter(([id, q]) => q > 0).map(([id, q]) => ({ p: PRODUCTS.find(x => x.id == id), q })).filter(x => x.p);
-  const total = cart.reduce((s, { p, q }) => s + p.price * q, 0);
-  const tabs = Object.entries(CAISSE_CATS).map(([k, v]) => `<button class="cat-tab ${CAT_FILTER === k ? 'is-active' : ''}" data-cat="${k}">${v}</button>`).join('');
+  const CATALOG = buildCatalog();
+  const tabBtn = (k, v) => `<button class="cat-tab ${CAT_FILTER === k ? 'is-active' : ''}" data-cat="${k}">${v}</button>`;
+  const prodBtn = (key, name, price, stock, low) => `<button class="caisse-prod" data-add="${key}"><span class="cp-name">${esc(name)}</span><span class="cp-price">${eur(price)}</span>${stock !== undefined ? `<span class="cp-stock ${low ? 'low' : ''}">stock ${stock}</span>` : ''}</button>`;
+  const projs = CAISSE_PROJECTS.filter(p => (p.items || []).length);
+  const tabs = Object.entries(CAISSE_CATS).map(([k, v]) => tabBtn(k, v)).join('')
+    + projs.map(p => tabBtn('proj:' + p.id, '🎉 ' + esc(p.title))).join('')
+    + tabBtn('adhesions', '🎟️ Adhésions');
+  // Zone de boutons
+  let buttons;
+  if (CAT_FILTER === 'adhesions') {
+    const annual = (ME.cotisation_amount || 20);
+    buttons = `<button class="caisse-prod adh" data-adh="annual"><span class="cp-name">Adhésion annuelle</span><span class="cp-price">${eur(annual)}</span></button>
+      <button class="caisse-prod adh" data-adh="libre"><span class="cp-name">Adhésion libre</span><span class="cp-price">≥ 20 €</span></button>`;
+  } else if (CAT_FILTER.startsWith('proj:')) {
+    const pr = CAISSE_PROJECTS.find(x => x.id === Number(CAT_FILTER.slice(5)));
+    const its = pr ? (pr.items || []) : [];
+    buttons = its.length ? its.map(it => prodBtn('i:' + it.id, it.name, it.price)).join('') : '<p class="muted">Aucun article pour ce projet.</p>';
+  } else {
+    let active = PRODUCTS.filter(p => p.active);
+    if (CAT_FILTER !== 'tous') active = active.filter(p => (p.category || '') === CAT_FILTER);
+    buttons = active.length ? active.map(p => prodBtn('p:' + p.id, p.name, p.price, p.stock, isLowStock(p))).join('') : '<p class="muted">Aucun produit dans cette catégorie.</p>';
+  }
+  const cart = Object.entries(CART).filter(([k, q]) => q > 0).map(([k, q]) => ({ k, q, it: CATALOG[k] })).filter(x => x.it);
+  const total = cart.reduce((s, { it, q }) => s + it.price * q, 0);
   c.innerHTML = `
     <div class="caisse-toolbar">
       <div class="caisse-cats">${tabs}</div>
       <button class="btn btn--ghost btn--sm sumup-btn" id="sumup-cfg" title="Configurer le terminal de paiement SumUp"><span data-lucide="credit-card"></span> Terminal SumUp ${SUMUP.configured ? '<span class="sumup-ok">● relié</span>' : '<span class="sumup-off">à configurer</span>'}</button>
     </div>
     <div class="caisse-grid">
-      <div class="caisse-products">${active.length ? active.map(p => `<button class="caisse-prod" data-add="${p.id}"><span class="cp-name">${esc(p.name)}</span><span class="cp-price">${eur(p.price)}</span><span class="cp-stock ${isLowStock(p) ? 'low' : ''}">stock ${p.stock}</span></button>`).join('') : '<p class="muted">Aucun produit dans cette catégorie.</p>'}</div>
+      <div class="caisse-products">${buttons}</div>
       <div class="caisse-ticket">
         <h3>Ticket</h3>
-        <div class="ticket-rows">${cart.length ? cart.map(({ p, q }) => `<div class="ticket-row"><span class="tr-name">${esc(p.name)}</span><span class="tr-qty"><button class="qbtn" data-dec="${p.id}">−</button><b>${q}</b><button class="qbtn" data-inc="${p.id}">+</button></span><span class="tr-sum">${eur(p.price * q)}</span></div>`).join('') : '<p class="muted">Touchez un produit pour l\'ajouter.</p>'}</div>
+        <div class="ticket-rows">${cart.length ? cart.map(({ k, q, it }) => `<div class="ticket-row"><span class="tr-name">${esc(it.name)}</span><span class="tr-qty"><button class="qbtn" data-dec="${k}">−</button><b>${q}</b><button class="qbtn" data-inc="${k}">+</button></span><span class="tr-sum">${eur(it.price * q)}</span></div>`).join('') : '<p class="muted">Touchez un article pour l\'ajouter.</p>'}</div>
         <div class="ticket-total">Total<strong>${eur(total)}</strong></div>
         <div class="pay-methods">
           <button class="btn btn--accent btn--md pay-btn" data-pay="especes"><span data-lucide="coins"></span> Espèces</button>
@@ -129,30 +157,60 @@ function drawCaisse() {
   $$('[data-cat]', c).forEach(b => b.addEventListener('click', () => { CAT_FILTER = b.dataset.cat; drawCaisse(); }));
   $$('[data-add]', c).forEach(b => b.addEventListener('click', () => { CART[b.dataset.add] = (CART[b.dataset.add] || 0) + 1; drawCaisse(); }));
   $$('[data-inc]', c).forEach(b => b.addEventListener('click', () => { CART[b.dataset.inc] = (CART[b.dataset.inc] || 0) + 1; drawCaisse(); }));
-  $$('[data-dec]', c).forEach(b => b.addEventListener('click', () => { const id = b.dataset.dec; CART[id] = Math.max(0, (CART[id] || 0) - 1); drawCaisse(); }));
+  $$('[data-dec]', c).forEach(b => b.addEventListener('click', () => { const k = b.dataset.dec; CART[k] = Math.max(0, (CART[k] || 0) - 1); drawCaisse(); }));
+  $$('[data-adh]', c).forEach(b => b.addEventListener('click', () => membershipModal(b.dataset.adh)));
   const cl = $('#clear', c); if (cl) cl.addEventListener('click', () => { CART = {}; drawCaisse(); });
   $$('[data-pay]', c).forEach(b => b.addEventListener('click', () => encaisser(b.dataset.pay)));
   const sc = $('#sumup-cfg', c); if (sc) sc.addEventListener('click', sumupModal);
   icons();
 }
-function cartTotal() { return Object.entries(CART).filter(([id, q]) => q > 0).reduce((s, [id, q]) => { const p = PRODUCTS.find(x => x.id == id); return s + (p ? p.price * q : 0); }, 0); }
+async function sumupPush(amount) {
+  if (!SUMUP.configured) return true;
+  try { await api('/bar/manager/sumup/checkout', { method: 'POST', body: JSON.stringify({ amount: Math.round(amount * 100) / 100, description: 'Bar Montety' }) }); toast('Montant envoyé au terminal SumUp 📟'); return true; }
+  catch (ex) { return confirm('Terminal SumUp injoignable (' + ex.message + '). Continuer quand même ?'); }
+}
 async function encaisser(method) {
-  const items = Object.entries(CART).filter(([id, q]) => q > 0).map(([id, q]) => ({ product_id: Number(id), qty: q }));
-  if (!items.length) { alert('Ajoutez des produits au ticket.'); return; }
+  const CATALOG = buildCatalog();
+  const entries = Object.entries(CART).filter(([k, q]) => q > 0);
+  if (!entries.length) { alert('Ajoutez des articles au ticket.'); return; }
+  const items = [], custom = [];
+  entries.forEach(([k, q]) => { const it = CATALOG[k]; if (!it) return; if (it.kind === 'p') items.push({ product_id: it.refId, qty: q }); else custom.push({ name: it.name, price: it.price, qty: q }); });
   const lbl = { especes: 'espèces', carte: 'carte', cadeau: 'cadeau (offert)' }[method] || method;
   if (method === 'cadeau' && !confirm('Enregistrer ce ticket comme CADEAU (offert, sans recette) ?')) return;
-  // Carte + terminal SumUp configuré : on envoie le montant au terminal
-  if (method === 'carte' && SUMUP.configured) {
-    const total = Math.round(cartTotal() * 100) / 100;
-    try { await api('/bar/manager/sumup/checkout', { method: 'POST', body: JSON.stringify({ amount: total, description: 'Bar Montety' }) }); toast('Montant envoyé au terminal SumUp 📟'); }
-    catch (ex) { if (!confirm('Terminal SumUp injoignable (' + ex.message + '). Enregistrer quand même la vente par carte ?')) return; }
-  }
+  if (method === 'carte' && !(await sumupPush(caisseCartTotal(CATALOG)))) return;
   try {
-    const r = await api('/bar/manager/sales', { method: 'POST', body: JSON.stringify({ items, method }) });
+    const r = await api('/bar/manager/sales', { method: 'POST', body: JSON.stringify({ items, custom, method }) });
     CART = {}; PRODUCTS = await api('/bar/manager/products');
     toast(method === 'cadeau' ? 'Cadeau enregistré' : 'Encaissé (' + lbl + ') : ' + eur(r.total));
     drawCaisse();
   } catch (ex) { toast(ex.message, true); }
+}
+async function membershipModal(kind) {
+  const annual = (ME.cotisation_amount || 20);
+  let members = [];
+  try { members = await api('/bar/manager/members'); } catch (_) {}
+  const opts = `<option value="">— Nouveau membre —</option>` + members.map(m => `<option value="${m.id}" data-prenom="${esc(m.prenom || '')}" data-nom="${esc(m.nom || '')}" data-email="${esc(m.email || '')}">${esc(m.nom || '')} ${esc(m.prenom || '')}${m.email ? ' (' + esc(m.email) + ')' : ''}</option>`).join('');
+  openModal(`<h3>${kind === 'annual' ? 'Adhésion annuelle' : 'Adhésion libre (≥ 20 €)'}</h3>
+    <form id="adh-form">
+      <div class="field"><label>Membre de l'association</label><select name="member">${opts}</select><div class="hint">Choisissez un membre existant (saisie auto) ou « Nouveau membre ».</div></div>
+      <div class="form-grid2"><div class="field"><label>Prénom</label><input name="prenom" required></div><div class="field"><label>Nom</label><input name="nom" required></div></div>
+      <div class="field"><label>E-mail (facultatif)</label><input name="email" type="email"></div>
+      <div class="form-grid2"><div class="field"><label>Montant (€)</label><input name="amount" type="number" step="0.01" min="20" value="${kind === 'annual' ? annual : ''}" ${kind === 'annual' ? 'readonly' : ''} required></div>
+        <div class="field"><label>Paiement</label><select name="method"><option value="especes">Espèces</option><option value="carte">Carte</option></select></div></div>
+      <p class="hint">L'adhésion est enregistrée dans la liste des adhésions et alimente la comptabilité de l'association (cotisation 756).</p>
+      <div class="modal-actions"><button type="button" class="btn btn--ghost btn--md" id="modal-cancel">Annuler</button><button type="submit" class="btn btn--accent btn--md">Encaisser l'adhésion</button></div></form>`);
+  $('#modal-cancel').addEventListener('click', closeModal);
+  const f = $('#adh-form');
+  f.member.addEventListener('change', e => { const o = e.target.selectedOptions[0]; f.prenom.value = o.dataset.prenom || ''; f.nom.value = o.dataset.nom || ''; f.email.value = o.dataset.email || ''; });
+  f.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const amount = Number(f.amount.value) || 0;
+    if (amount < 20) { toast('Minimum 20 €.', true); return; }
+    if (f.method.value === 'carte' && !(await sumupPush(amount))) return;
+    try { const r = await api('/bar/manager/membership', { method: 'POST', body: JSON.stringify({ member_id: f.member.value || null, prenom: f.prenom.value.trim(), nom: f.nom.value.trim(), email: f.email.value.trim(), amount, method: f.method.value }) });
+      closeModal(); toast((r.renewed ? 'Adhésion renouvelée : ' : 'Adhésion encaissée : ') + eur(amount)); }
+    catch (ex) { toast(ex.message, true); }
+  });
 }
 function sumupModal() {
   openModal(`<h3 class="modal-title-row">Terminal SumUp <button type="button" class="help-btn" id="sumup-help" title="Aide : comment configurer SumUp">?</button></h3>
@@ -385,6 +443,10 @@ function projCard(p) {
     ${p.document_key ? `<a href="/img/${esc(p.document_key)}" target="_blank" rel="noopener" class="muted" style="font-size:.9rem">📎 Devis / document</a>` : ''}
     <div class="proj-tasks"><div class="proj-tasks-head">Tâches (${done}/${p.tasks.length}) <button class="icon-btn" data-taskadd="${p.id}"><span data-lucide="plus"></span></button></div>
       ${p.tasks.map(t => `<label class="proj-task"><input type="checkbox" data-tasktoggle="${t.id}" ${t.done ? 'checked' : ''}><span class="${t.done ? 'done' : ''}">${esc(t.label)}</span><button class="icon-btn danger" data-taskdel="${t.id}"><span data-lucide="x"></span></button></label>`).join('')}
+    </div>
+    <div class="proj-tasks"><div class="proj-tasks-head"><span data-lucide="shopping-cart" style="width:14px;height:14px;vertical-align:-2px"></span> Articles caisse (${(p.items || []).length}) <button class="icon-btn" data-itemadd="${p.id}"><span data-lucide="plus"></span></button></div>
+      ${(p.items || []).map(it => `<div class="proj-task"><span>${esc(it.name)}</span><span class="muted" style="margin-left:auto">${eur(it.price)}</span><button class="icon-btn danger" data-itemdel="${it.id}"><span data-lucide="x"></span></button></div>`).join('')}
+      <div class="hint" style="margin-top:4px">Ces articles apparaissent dans la Caisse (onglet « 🎉 ${esc(p.title)} »).</div>
     </div></div>`;
 }
 function projectModal(p) {
@@ -532,8 +594,9 @@ function eqRow(t) {
   if (t.email) meta.push(`<span class="eq-field">✉ <a href="mailto:${esc(t.email)}">${esc(t.email)}</a></span>`);
   if (t.rib) meta.push(`<span class="eq-field">IBAN ${esc(t.rib)} <button class="icon-btn eq-copy" data-copyval="${esc(t.rib)}" title="Copier l'IBAN"><span data-lucide="copy"></span></button></span>`);
   if (t.pay_method) meta.push(`<span class="badge badge--ocre">Remb. : ${esc(PAY_PREF_LBL[t.pay_method] || t.pay_method)}</span>`);
-  return `<div class="stock-item"><div class="si-info"><span class="si-name">${esc(t.name)}${t.role ? ` <span class="badge badge--neutral">${esc(t.role)}</span>` : ''}</span><span class="si-meta eq-meta">${meta.join('') || '—'}</span></div>
-    <button class="icon-btn" data-eqedit="${t.id}" title="Modifier"><span data-lucide="pencil"></span></button><button class="icon-btn danger" data-eqdel="${t.id}" title="Supprimer"><span data-lucide="trash-2"></span></button></div>`;
+  const tag = t.is_manager ? ' <span class="badge badge--olive" title="A un accès à l\'espace gérant du bar">Gérant</span>' : (t.role ? ` <span class="badge badge--neutral">${esc(t.role)}</span>` : '');
+  return `<div class="stock-item"><div class="si-info"><span class="si-name">${esc(t.name)}${tag}</span><span class="si-meta eq-meta">${meta.join('') || '—'}</span></div>
+    <button class="icon-btn" data-eqedit="${t.id}" title="Modifier"><span data-lucide="pencil"></span></button>${t.is_manager ? '' : `<button class="icon-btn danger" data-eqdel="${t.id}" title="Supprimer"><span data-lucide="trash-2"></span></button>`}</div>`;
 }
 async function renderEquipiers() {
   const c = $('#bara-content'); c.innerHTML = '<p class="muted">Chargement…</p>';
@@ -634,6 +697,8 @@ async function renderProjetsPartenaires() {
   $$('[data-taskadd]', c).forEach(b => b.addEventListener('click', async () => { const label = prompt('Nouvelle tâche :'); if (!label) return; try { await api('/bar/manager/projects/' + b.dataset.taskadd + '/tasks', { method: 'POST', body: JSON.stringify({ label: label.trim() }) }); R(); } catch (ex) { toast(ex.message, true); } }));
   $$('[data-tasktoggle]', c).forEach(cb => cb.addEventListener('change', async () => { try { await api('/bar/manager/tasks/' + cb.dataset.tasktoggle, { method: 'PATCH', body: JSON.stringify({ done: cb.checked ? 1 : 0 }) }); cb.nextElementSibling.classList.toggle('done', cb.checked); } catch (ex) { toast(ex.message, true); } }));
   $$('[data-taskdel]', c).forEach(b => b.addEventListener('click', async () => { try { await api('/bar/manager/tasks/' + b.dataset.taskdel, { method: 'DELETE' }); R(); } catch (ex) { toast(ex.message, true); } }));
+  $$('[data-itemadd]', c).forEach(b => b.addEventListener('click', async () => { const name = prompt('Nom de l\'article (ex. Repas, Boisson) :'); if (!name) return; const price = prompt('Prix (€) :', '0'); if (price === null) return; try { await api('/bar/manager/projects/' + b.dataset.itemadd + '/items', { method: 'POST', body: JSON.stringify({ name: name.trim(), price: Number(price) || 0 }) }); R(); } catch (ex) { toast(ex.message, true); } }));
+  $$('[data-itemdel]', c).forEach(b => b.addEventListener('click', async () => { try { await api('/bar/manager/project-items/' + b.dataset.itemdel, { method: 'DELETE' }); R(); } catch (ex) { toast(ex.message, true); } }));
   $$('[data-paedit]', c).forEach(b => b.addEventListener('click', () => partnerModal(partners.find(p => p.id == b.dataset.paedit))));
   $$('[data-padel]', c).forEach(b => b.addEventListener('click', async () => { if (!confirm('Supprimer ce partenaire ?')) return; try { await api('/bar/manager/partners/' + b.dataset.padel, { method: 'DELETE' }); R(); } catch (ex) { toast(ex.message, true); } }));
   icons();
