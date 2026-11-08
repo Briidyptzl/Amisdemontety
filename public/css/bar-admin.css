@@ -23,6 +23,8 @@
 .bara-tab.is-active { background: var(--brique-500); color: var(--creme-50); }
 
 .bara-content { padding: 18px; max-width: 1100px; width: 100%; margin: 0 auto; flex: 1; }
+/* Vue Équipiers : page élargie pour que la frise tienne en entier */
+.bara-content--wide { max-width: 1600px; }
 .bara-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 22px; }
 .bara-card h2 { display: flex; align-items: center; gap: 10px; font-size: 1.4rem; margin: 0 0 16px; }
 .bara-card h2 svg { width: 22px; height: 22px; color: var(--brique-500); }
@@ -148,11 +150,18 @@ button.alert-chip.on { border-color: currentColor; box-shadow: var(--shadow-xs);
 .fr-dn { display: block; font-weight: 700; }
 .fr-corner { position: sticky; left: 0; z-index: 2; background: var(--creme-100); min-width: 120px; }
 .fr-name { position: sticky; left: 0; z-index: 1; background: var(--color-surface); text-align: left; padding: 6px 10px; font-weight: 700; white-space: nowrap; }
-.fr-we { margin-left: 8px; border: 1px solid var(--color-border-strong); background: var(--creme-100); border-radius: 6px; font-size: .68rem; font-weight: 700; padding: 1px 6px; cursor: pointer; color: var(--encre-soft); }
+.frise td { position: relative; }
 .frise td.we { background: var(--creme-100); }
 .fr-cell { width: 34px; height: 38px; border: none; background: transparent; cursor: pointer; display: block; }
 .fr-cell.on { background: var(--olive-400, #8ca36b); }
 .fr-cell.on::after { content: '✓'; color: #fff; font-weight: 700; }
+/* Achat d'un équipier un jour donné : « A » rouge (à rembourser) / vert (remboursé) */
+.fr-buy { position: absolute; top: 1px; right: 1px; width: 15px; height: 15px; border-radius: 4px; font-size: .68rem; font-weight: 800; line-height: 15px; color: #fff; pointer-events: none; }
+.fr-buy.unpaid { background: var(--brique-600, #b84c38); }
+.fr-buy.paid { background: var(--olive-500, #6f8a4e); }
+.fr-buy-ex { display: inline-block; width: 16px; height: 16px; border-radius: 4px; color: #fff; text-align: center; line-height: 16px; font-size: .72rem; vertical-align: -3px; }
+.fr-buy-ex.unpaid { background: var(--brique-600, #b84c38); }
+.fr-buy-ex.paid { background: var(--olive-500, #6f8a4e); }
 /* Ligne Projets */
 .fr-proj-row .fr-name { background: var(--creme-100); }
 .fr-proj-td { position: relative; overflow: visible; }
@@ -161,11 +170,13 @@ button.alert-chip.on { border-color: currentColor; box-shadow: var(--shadow-xs);
 .fr-proj-label { position: absolute; left: 3px; top: 50%; transform: translateY(-50%); white-space: nowrap; font-size: .7rem; font-weight: 700; color: var(--brique-700, #8f3f27); background: rgba(255,255,255,.82); padding: 1px 4px; border-radius: 3px; pointer-events: none; z-index: 3; }
 
 /* Répertoire équipiers : champs avec copie */
-.eq-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
-.eq-field { display: inline-flex; align-items: center; gap: 4px; }
+.eq-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.eq-field { display: inline-flex; align-items: center; gap: 6px; }
 .eq-field a { color: var(--brique-600); text-decoration: none; }
-.eq-copy { width: 24px; height: 24px; }
+.eq-copy { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border: 1.5px solid var(--brique-400, #c47a5f); background: var(--creme-50); color: var(--brique-700, #9e4030); border-radius: 999px; font-size: .78rem; font-weight: 700; cursor: pointer; line-height: 1; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 .eq-copy svg { width: 14px; height: 14px; }
+.eq-copy:hover { background: var(--brique-500, #b5684f); color: #fff; border-color: var(--brique-500, #b5684f); }
+.eq-copy.is-copied { background: var(--olive-500, #6f8a4e); border-color: var(--olive-500, #6f8a4e); color: #fff; }
 
 /* Matériel */
 .mat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-top: 8px; }

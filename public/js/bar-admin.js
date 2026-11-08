@@ -58,6 +58,8 @@ async function init() {
 function switchView(v) {
   VIEW = v;
   $$('.bara-tab').forEach(b => b.classList.toggle('is-active', b.dataset.view === v));
+  // La frise des disponibilités a besoin de toute la largeur pour tenir en entier
+  $('#bara-content').classList.toggle('bara-content--wide', v === 'equipiers');
   ({ board: renderBoard, caisse: renderCaisse, stock: renderStock, recettes: renderRecettes, achats: renderAchats, bank: renderBank, equipiers: renderEquipiers, materiel: renderMateriel, projects: renderProjetsPartenaires, vitrine: renderVitrine }[v] || renderBoard)();
 }
 async function barUpload(file) {
@@ -593,9 +595,9 @@ let AVAIL_START = monthStart(todayLocal());
 const PAY_PREF_LBL = { wero: 'Wero', virement: 'Virement', liquide: 'Liquide', autre: 'Autre' };
 function eqRow(t) {
   const meta = [];
-  if (t.phone) meta.push(`<span class="eq-field">📞 <a href="tel:${esc(String(t.phone).replace(/[^+0-9]/g, ''))}">${esc(t.phone)}</a> <button class="icon-btn eq-copy" data-copyval="${esc(t.phone)}" title="Copier le numéro"><span data-lucide="copy"></span></button></span>`);
-  if (t.email) meta.push(`<span class="eq-field">✉ <a href="mailto:${esc(t.email)}">${esc(t.email)}</a></span>`);
-  if (t.rib) meta.push(`<span class="eq-field">IBAN ${esc(t.rib)} <button class="icon-btn eq-copy" data-copyval="${esc(t.rib)}" title="Copier l'IBAN"><span data-lucide="copy"></span></button></span>`);
+  if (t.phone) meta.push(`<span class="eq-field">📞 <a href="tel:${esc(String(t.phone).replace(/[^+0-9]/g, ''))}">${esc(t.phone)}</a> <button class="eq-copy" data-copyval="${esc(t.phone)}" title="Copier le numéro"><span data-lucide="copy"></span><span class="eq-copy-txt">Copier</span></button></span>`);
+  if (t.email) meta.push(`<span class="eq-field">✉ <a href="mailto:${esc(t.email)}">${esc(t.email)}</a> <button class="eq-copy" data-copyval="${esc(t.email)}" title="Copier l'e-mail"><span data-lucide="copy"></span><span class="eq-copy-txt">Copier</span></button></span>`);
+  if (t.rib) meta.push(`<span class="eq-field">IBAN ${esc(t.rib)} <button class="eq-copy" data-copyval="${esc(t.rib)}" title="Copier l'IBAN"><span data-lucide="copy"></span><span class="eq-copy-txt">Copier</span></button></span>`);
   if (t.pay_method) meta.push(`<span class="badge badge--ocre">Remb. : ${esc(PAY_PREF_LBL[t.pay_method] || t.pay_method)}</span>`);
   const tag = t.is_manager ? ' <span class="badge badge--olive" title="A un accès à l\'espace gérant du bar">Gérant</span>' : (t.role ? ` <span class="badge badge--neutral">${esc(t.role)}</span>` : '');
   return `<div class="stock-item"><div class="si-info"><span class="si-name">${esc(t.name)}${tag}</span><span class="si-meta eq-meta">${meta.join('') || '—'}</span></div>
@@ -604,12 +606,25 @@ function eqRow(t) {
 async function renderEquipiers() {
   const c = $('#bara-content'); c.innerHTML = '<p class="muted">Chargement…</p>';
   const from = AVAIL_START, ndays = daysInMonth(from), to = addDays(from, ndays - 1);
-  const [list, avail, projects] = await Promise.all([api('/bar/manager/team'), api('/bar/manager/availability?from=' + from + '&to=' + to), api('/bar/manager/projects')]);
+  const [list, avail, projects, purchases] = await Promise.all([api('/bar/manager/team'), api('/bar/manager/availability?from=' + from + '&to=' + to), api('/bar/manager/projects'), api('/bar/manager/purchases')]);
   const aset = new Set(avail.map(a => a.team_id + '|' + a.adate));
   const today = todayLocal();
   const cols = []; for (let i = 0; i < ndays; i++) { const d = addDays(from, i); const wd = new Date(d + 'T00:00').getDay(); cols.push({ d, wd, we: wd === 0 || wd === 6 }); }
   const headCells = cols.map(col => `<th class="${col.we ? 'we' : ''} ${col.d === today ? 'is-today' : ''}"><span class="fr-wd">${WD_ABBR[col.wd]}</span><span class="fr-dn">${Number(col.d.slice(8, 10))}</span></th>`).join('');
-  const bodyRows = list.map(t => `<tr><th class="fr-name">${esc(t.name)}<button class="fr-we" data-weekend="${t.id}" title="Marquer les week-ends dispo">WE</button></th>${cols.map(col => `<td class="${col.we ? 'we' : ''}"><button class="fr-cell ${aset.has(t.id + '|' + col.d) ? 'on' : ''}" data-av="${t.id}|${col.d}"></button></td>`).join('')}</tr>`).join('');
+  // Achats des équipiers : un « A » dans la case du jour de l'achat — rouge si non remboursé, vert si remboursé.
+  // Alimenté automatiquement par les achats saisis dans l'onglet Achats et remis à jour quand un achat est remboursé.
+  const buyMap = {};
+  const normName = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+  purchases.forEach(p => {
+    if (!p.pdate || p.pdate < from || p.pdate > to) return;
+    const t = list.find(x => x.name === p.buyer) || list.find(x => p.buyer && normName(x.name).startsWith(normName(p.buyer)));
+    if (!t) return;
+    const k = t.id + '|' + p.pdate, m = buyMap[k] || (buyMap[k] = { paid: 0, unpaid: 0, items: [] });
+    if (p.reimbursed) m.paid++; else m.unpaid++;
+    m.items.push(p.designation + ' (' + (Number(p.amount) || 0).toFixed(2) + ' €)');
+  });
+  const buyMark = (tid, d) => { const m = buyMap[tid + '|' + d]; if (!m) return ''; const unpaid = m.unpaid > 0; return `<span class="fr-buy ${unpaid ? 'unpaid' : 'paid'}" title="${esc(m.items.join(', '))} — ${unpaid ? 'à rembourser' : 'remboursé'}">A</span>`; };
+  const bodyRows = list.map(t => `<tr><th class="fr-name">${esc(t.name)}</th>${cols.map(col => `<td class="${col.we ? 'we' : ''}"><button class="fr-cell ${aset.has(t.id + '|' + col.d) ? 'on' : ''}" data-av="${t.id}|${col.d}"></button>${buyMark(t.id, col.d)}</td>`).join('')}</tr>`).join('');
   // Ligne Projets : couvre les jours entre date de début et date de fin
   const projsD = projects.filter(p => p.start_date || p.end_date);
   const projDays = {}, labelAt = {};
@@ -620,7 +635,7 @@ async function renderEquipiers() {
     <div class="bara-card">
       <div class="bara-card-head"><h2><span data-lucide="calendar-days"></span> Disponibilités</h2>
         <div style="display:flex;align-items:center;gap:6px"><button class="btn btn--ghost btn--sm" id="av-prev"><span data-lucide="chevron-left"></span></button><span class="muted" style="min-width:150px;text-align:center">${esc(monthLbl)}</span><button class="btn btn--ghost btn--sm" id="av-next"><span data-lucide="chevron-right"></span></button></div></div>
-      <p class="muted">Touchez une case pour (dé)marquer un équipier disponible ce jour. Le bouton <b>WE</b> marque tous les week-ends du mois. La ligne <b>Projets</b> montre les projets datés.</p>
+      <p class="muted">Touchez une case pour (dé)marquer un équipier disponible ce jour. La ligne <b>Projets</b> montre les projets datés. Un <b class="fr-buy-ex unpaid">A</b> rouge signale un achat à rembourser, <b class="fr-buy-ex paid">A</b> vert un achat remboursé.</p>
       ${list.length ? `<div class="frise-wrap"><table class="frise"><thead><tr><th class="fr-corner">Équipier</th>${headCells}</tr></thead><tbody>${projRow}${bodyRows}</tbody></table></div>` : '<p class="muted">Ajoutez des équipiers ci-dessous pour gérer les disponibilités.</p>'}
     </div>
     <div class="bara-card" style="margin-top:16px">
@@ -634,14 +649,17 @@ async function renderEquipiers() {
     try { await api('/bar/manager/availability', { method: 'POST', body: JSON.stringify({ team_id: Number(tid), adate: d, available: on ? 1 : 0 }) }); }
     catch (ex) { toast(ex.message, true); b.classList.toggle('on', !on); }
   }));
-  $$('[data-weekend]', c).forEach(b => b.addEventListener('click', async () => {
-    const tid = Number(b.dataset.weekend); const wd = cols.filter(col => col.we);
-    try { for (const col of wd) if (!aset.has(tid + '|' + col.d)) await api('/bar/manager/availability', { method: 'POST', body: JSON.stringify({ team_id: tid, adate: col.d, available: 1 }) }); toast('Week-ends marqués'); renderEquipiers(); }
-    catch (ex) { toast(ex.message, true); }
-  }));
   $('#eq-add').addEventListener('click', () => teamModal());
   $$('[data-eqedit]', c).forEach(b => b.addEventListener('click', () => teamModal(list.find(t => t.id == b.dataset.eqedit))));
-  $$('[data-copyval]', c).forEach(b => b.addEventListener('click', e => { e.preventDefault(); navigator.clipboard.writeText(b.dataset.copyval).then(() => toast('Copié'), () => toast('Copie impossible', true)); }));
+  $$('[data-copyval]', c).forEach(b => b.addEventListener('click', e => {
+    e.preventDefault();
+    navigator.clipboard.writeText(b.dataset.copyval).then(() => {
+      const txt = b.querySelector('.eq-copy-txt'); const prev = txt ? txt.textContent : '';
+      b.classList.add('is-copied'); if (txt) txt.textContent = 'Copié ✓';
+      setTimeout(() => { b.classList.remove('is-copied'); if (txt) txt.textContent = prev; }, 1500);
+      toast('Copié');
+    }, () => toast('Copie impossible', true));
+  }));
   $$('[data-eqdel]', c).forEach(b => b.addEventListener('click', async () => { if (!confirm('Supprimer cet équipier ?')) return; try { await api('/bar/manager/team/' + b.dataset.eqdel, { method: 'DELETE' }); renderEquipiers(); } catch (ex) { toast(ex.message, true); } }));
   icons();
 }
